@@ -1,0 +1,119 @@
+/* Modal overlay backdrop for the auth dialog */
+.dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.65);
+  z-index: 1100;
+}
+
+/* Auth dialog panel styling */
+.login-dialog {
+  width: min(380px, calc(100% - 48px));
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 26px 60px rgba(15, 23, 42, 0.4);
+}
+
+.login-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+}
+
+/* Paragraph text inside the auth dialog */
+.login-dialog p {
+  margin: 0 0 20px;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+/* Layout for the auth form fields */
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.login-form label {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+/* Form input styling for email and password fields */
+.login-form input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+}
+
+/* Placeholder text styling within auth inputs */
+.login-form input::placeholder {
+  color: rgba(248, 250, 252, 0.5);
+}
+
+/* Focus state styling for auth input fields */
+.login-form input:focus {
+  outline: 2px solid rgba(56, 189, 248, 0.5);
+  outline-offset: 2px;
+}
+
+/* Button row layout inside the auth dialog */
+.dialog-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.dialog-action-button,
+.dialog-secondary-button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Primary action button style for auth form submissions */
+.dialog-action-button {
+  background: #38bdf8;
+  color: #082f49;
+  margin-right: 10px;
+}
+
+.dialog-action-button:hover {
+  background: #7dd3fc;
+}
+
+/* Secondary button style for alternative auth actions */
+.dialog-secondary-button {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+.dialog-secondary-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Link-style button to switch auth modes */
+.dialog-switch-mode {
+  border: none;
+  background: transparent;
+  color: #7dd3fc;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.95rem;
+  margin-top: 8px;
+  text-align: left;
+}
+
+.dialog-switch-mode:hover {
+  color: #38bdf8;
+}
