@@ -29,7 +29,7 @@ export default function ResetPasswordConfirm({ onDone }: Props) {
 
     setIsSubmitting(true)
     try {
-      const { data, error } = await supabase.auth.updateUser({ password })
+      const { error } = await supabase.auth.updateUser({ password })
       if (error) {
         setError(error.message || 'Unable to update password')
         setIsSubmitting(false)
@@ -39,13 +39,15 @@ export default function ResetPasswordConfirm({ onDone }: Props) {
       // Clear url fragment to avoid repeated processing
       try {
         window.history.replaceState(null, '', window.location.pathname + window.location.search)
-      } catch (_) {}
+      } catch {
+        // ignore — cosmetic cleanup only
+      }
 
       setNotice('Password updated. You are now signed in.')
       setIsSubmitting(false)
       onDone(true)
-    } catch (err: any) {
-      setError(err?.message ?? String(err))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
       setIsSubmitting(false)
     }
   }

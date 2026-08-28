@@ -1,7 +1,5 @@
-import { useState } from 'react'
-import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { RefObject } from 'react'
 import type { User } from '@supabase/supabase-js'
-import type { TileLayerConfig, TileLayerId } from '../tileLayers.js'
 import './MapControls.css'
 
 type MapControlsProps = {

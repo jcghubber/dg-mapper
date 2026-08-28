@@ -16,7 +16,15 @@ type Props = {
   controlsOrder?: ControlKey[]
 }
 
-function MapOverlay({ layers, mapLayer, setMapLayer, locateUser, position = 'top-left', orientation = 'vertical' }: Props) {
+function MapOverlay({
+  layers,
+  mapLayer,
+  setMapLayer,
+  locateUser,
+  position = 'top-left',
+  orientation = 'vertical',
+  controlsOrder = ['layer', 'zoom', 'locate'],
+}: Props) {
   const map = useMap()
   const [zoom, setZoom] = useState<number>(map.getZoom())
   const [showLayerOptions, setShowLayerOptions] = useState(false)
@@ -37,10 +45,6 @@ function MapOverlay({ layers, mapLayer, setMapLayer, locateUser, position = 'top
   }
 
   const activeLayer = layers.find((l) => l.id === mapLayer)
-
-  const controlsOrder = (
-    (arguments[0] as Props)?.controlsOrder ?? ['layer', 'zoom', 'locate']
-  ) as ControlKey[]
 
   const layerControl = (
     <div className="layer-group" key="layer">

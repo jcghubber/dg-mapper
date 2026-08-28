@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
-import { supabase, supabaseUrl, supabaseAnonKey } from './lib/supabase.js'
+import type { TileErrorEvent } from 'leaflet'
+import { supabase } from './lib/supabase.js'
 import AuthDialog from './components/AuthDialog.js'
 import MapControls from './components/MapControls.js'
 import MapOverlay from './components/MapOverlay.js'
@@ -9,8 +10,6 @@ import ResetPasswordConfirm from './components/ResetPasswordConfirm.js'
 import { tileLayers, type TileLayerId } from './tileLayers.js'
 import ArcGISImageLayer from './components/ArcGISImageLayer.js'
 import './App.css'
-
-let hasAttemptedInitialLocation = false
 
 type MapLayer = TileLayerId
 type AuthMode = 'login' | 'signup' | 'reset' | 'magic-link'
@@ -83,13 +82,11 @@ function App() {
 
     navigator.geolocation.getCurrentPosition(
       (geoPosition) => {
-        console.log('Geolocation success:', geoPosition)
         const nextPosition: [number, number] = [geoPosition.coords.latitude, geoPosition.coords.longitude]
         setPosition(nextPosition)
         setIsLocating(false)
       },
       (err) => {
-        console.error('Geolocation error:', err)
         setLocationError(err.message || 'Unable to access your location right now.')
         setIsLocating(false)
       },
@@ -110,33 +107,26 @@ function App() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then((res: any) => {
-      setUser(res.data.session?.user ?? null)
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null)
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      setUser(session?.user ?? null)
-    })
+    // supabase-js auto-detects a recovery token in the URL (detectSessionInUrl is on by
+    // default) and fires this event once that session is actually established — so this
+    // is also the correct place to reveal the "set new password" form, rather than
+    // parsing the URL ourselves ahead of time.
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        setUser(session?.user ?? null)
+        if (event === 'PASSWORD_RECOVERY') {
+          setShowConfirmReset(true)
+        }
+      },
+    )
 
     return () => listener.subscription.unsubscribe()
   }, [])
 
-  useEffect(() => {
-    try {
-      const url = new URL(window.location.href)
-      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''))
-      const queryParams = new URLSearchParams(url.search)
-      const type = hashParams.get('type') ?? queryParams.get('type')
-
-      if (type === 'recovery') {
-        ;(supabase.auth as any).getSessionFromUrl?.({ storeSession: true }).catch(() => {})
-        setShowConfirmReset(true)
-      }
-    } catch (err) {
-      // ignore malformed URL handling
-    }
-  }, [])
-  
   useEffect(() => {
     const handleBodyClick = (event: MouseEvent) => {
       if (!(event.target instanceof Node)) {
@@ -235,52 +225,19 @@ function App() {
     setAuthNotice('')
     setIsAuthenticating(true)
 
-    try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(authEmail, {
-        redirectTo: window.location.origin,
-      })
+    const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+      redirectTo: window.location.origin,
+    })
 
-      setIsAuthenticating(false)
+    setIsAuthenticating(false)
 
-      if (error) {
-        console.error('Reset password error:', error, 'data:', data)
-        // attempt a direct fetch to surface low-level response for debugging
-        try {
-          const debugUrl = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/recover`
-          const debugRes = await fetch(debugUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: supabaseAnonKey ?? '',
-              Authorization: `Bearer ${supabaseAnonKey ?? ''}`,
-            },
-            body: JSON.stringify({ email: authEmail, redirect_to: window.location.origin }),
-          })
-
-          let debugBody: any = null
-          try {
-            debugBody = await debugRes.text()
-          } catch (e) {
-            debugBody = '<no body>'
-          }
-
-          console.debug('Direct fetch to recover endpoint:', { debugUrl, status: debugRes.status, body: debugBody })
-        } catch (fetchErr) {
-          console.error('Direct recover fetch failed:', fetchErr)
-        }
-
-        setAuthError(error.message ?? JSON.stringify(error))
-        return
-      }
-
-      console.debug('Reset password sent:', data)
-      setAuthNotice('Check your email for a password reset link.')
-      setAuthEmail('')
-    } catch (err) {
-      setIsAuthenticating(false)
-      console.error('Reset password exception:', err)
-      setAuthError((err as any)?.message ?? JSON.stringify(err))
+    if (error) {
+      setAuthError(error.message)
+      return
     }
+
+    setAuthNotice('Check your email for a password reset link.')
+    setAuthEmail('')
   }
 
   const handleMagicLinkLogin = async (event: FormEvent<HTMLFormElement>) => {
@@ -316,67 +273,11 @@ function App() {
     setShowUserMenu((current) => !current)
   }
 
-  // const activeLayer = tileLayers.find((layer: any) => layer.id === mapLayer) ?? tileLayers[0]!
-
-  // const handleTileError = (event: any) => {
-  //   const tile = event?.tile
-  //   const src = tile?.src
-  //   const zoom = event?.coords?.z ?? event?.target?._map?.getZoom?.() ?? 'unknown'
-
-  //   tileErrorCountRef.current += 1
-
-  //   console.error('Leaflet tile error:', {
-  //     layer: activeLayer.label,
-  //     zoom,
-  //     url: src,
-  //     errorCount: tileErrorCountRef.current,
-  //     event,
-  //   })
-
-  //   // Don't bother the user for an isolated tile failure.
-  //   if (tileErrorCountRef.current < 5) {
-  //     return
-  //   }
-
-  //   setTileNotice(
-  //     `Unable to load some ${activeLayer.label} map tiles. Try zooming out or switching layers.`,
-  //   )
-  // }
-
-  // useEffect(() => {
-  //   tileErrorCountRef.current = 0
-  //   setTileNotice('')
-  // }, [mapLayer])
-
-  // const dismissTileNotice = () => {
-  //   setTileNotice('')
-  // }
-
-  // const handleTileLoad = () => {
-  //   // Keep the notice visible until the user dismisses it.
-    
-  // }
-
   const activeLayer =
     tileLayers.find((layer) => layer.id === mapLayer) ?? tileLayers[0]!
 
-  const handleTileError = (event: any) => {
-    const tile = event?.tile
-    const src = tile?.src
-    const zoom =
-      event?.coords?.z ??
-      event?.target?._map?.getZoom?.() ??
-      'unknown'
-
+  const handleTileError = (_event: TileErrorEvent) => {
     tileErrorCountRef.current += 1
-
-    console.error('Leaflet tile error:', {
-      layer: activeLayer.label,
-      zoom,
-      url: src,
-      errorCount: tileErrorCountRef.current,
-      event,
-    })
 
     if (tileErrorCountRef.current >= 5) {
       setTileNotice(
@@ -502,48 +403,24 @@ function App() {
               </button>
             </div>
           ) : null}
-          {/* {(() => {
-            const activeLayer = tileLayers.find((layer: any) => layer.id === mapLayer) ?? tileLayers[0]!
-            return (
-              <TileLayer
-                attribution={activeLayer.attribution}
-                url={activeLayer.url}
-                maxZoom={activeLayer.maxZoom ?? 23}
-                maxNativeZoom={activeLayer.maxNativeZoom ?? 23}
-                eventHandlers={{
-                  tileerror: handleTileError,
-                  load: handleTileLoad,
-                }}
-              />
-            )
-          })()} */}
-          {(() => {
-            const activeLayer =
-              tileLayers.find((layer) => layer.id === mapLayer) ?? tileLayers[0]!
-
-            if (activeLayer.type === 'image') {
-              return (
-                <ArcGISImageLayer
-                  url={activeLayer.url}
-                  attribution={activeLayer.attribution}
-                  maxZoom={activeLayer.maxZoom ?? 23}
-                />
-              )
-            }
-
-            return (
-              <TileLayer
-                attribution={activeLayer.attribution}
-                url={activeLayer.url}
-                maxZoom={activeLayer.maxZoom ?? 23}
-                maxNativeZoom={activeLayer.maxNativeZoom ?? 23}
-                eventHandlers={{
-                  tileerror: handleTileError,
-                  load: handleTileLoad,
-                }}
-              />
-            )
-          })()}
+          {activeLayer.type === 'image' ? (
+            <ArcGISImageLayer
+              url={activeLayer.url}
+              attribution={activeLayer.attribution}
+              maxZoom={activeLayer.maxZoom ?? 23}
+            />
+          ) : (
+            <TileLayer
+              attribution={activeLayer.attribution}
+              url={activeLayer.url}
+              maxZoom={activeLayer.maxZoom ?? 23}
+              maxNativeZoom={activeLayer.maxNativeZoom ?? 23}
+              eventHandlers={{
+                tileerror: handleTileError,
+                load: handleTileLoad,
+              }}
+            />
+          )}
 
           <RecenterAutomatically position={position} />
           <MapOverlay
