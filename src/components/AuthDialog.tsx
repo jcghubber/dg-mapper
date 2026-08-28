@@ -1,11 +1,11 @@
 import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react'
 import './AuthDialog.css'
 
-type AuthMode = 'login' | 'signup' | 'reset'
+type AuthMode = 'login' | 'signup' | 'reset' | 'magic-link'
 
 type AuthDialogProps = {
   showLoginDialog: boolean
-  loginDialogRef: RefObject<HTMLDivElement>
+  loginDialogRef: RefObject<HTMLDivElement | null>
   authMode: AuthMode
   authEmail: string
   authPassword: string
@@ -15,10 +15,13 @@ type AuthDialogProps = {
   setAuthMode: Dispatch<SetStateAction<AuthMode>>
   setAuthEmail: Dispatch<SetStateAction<string>>
   setAuthPassword: Dispatch<SetStateAction<string>>
+  setAuthError: Dispatch<SetStateAction<string>>
+  setAuthNotice: Dispatch<SetStateAction<string>>
   setShowLoginDialog: Dispatch<SetStateAction<boolean>>
   handleLogin: (event: FormEvent<HTMLFormElement>) => Promise<void>
   handleSignup: (event: FormEvent<HTMLFormElement>) => Promise<void>
   handleResetPassword: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  handleMagicLinkLogin: (event: FormEvent<HTMLFormElement>) => Promise<void>
 }
 
 function AuthDialog({
@@ -33,10 +36,13 @@ function AuthDialog({
   setAuthMode,
   setAuthEmail,
   setAuthPassword,
+  setAuthError,
+  setAuthNotice,
   setShowLoginDialog,
   handleLogin,
   handleSignup,
   handleResetPassword,
+  handleMagicLinkLogin,
 }: AuthDialogProps) {
   if (!showLoginDialog) {
     return null
@@ -47,6 +53,8 @@ function AuthDialog({
       ? handleLogin
       : authMode === 'signup'
       ? handleSignup
+      : authMode === 'magic-link'
+      ? handleMagicLinkLogin
       : handleResetPassword
 
   return (
@@ -57,6 +65,8 @@ function AuthDialog({
             ? 'Log in'
             : authMode === 'signup'
             ? 'Create account'
+            : authMode === 'magic-link'
+            ? 'Email me a sign-in link'
             : 'Reset password'}
         </h2>
         <p>
@@ -64,6 +74,8 @@ function AuthDialog({
             ? 'Sign in to access user options.'
             : authMode === 'signup'
             ? 'Create an account with your email and password.'
+            : authMode === 'magic-link'
+            ? 'We will email you a secure link that signs you in instantly.'
             : 'Enter your email and we will send you a reset link.'}
         </p>
 
@@ -78,7 +90,7 @@ function AuthDialog({
             required
           />
 
-          {authMode !== 'reset' ? (
+          {authMode !== 'reset' && authMode !== 'magic-link' ? (
             <>
               <label htmlFor="login-password">Password</label>
               <input
@@ -102,11 +114,15 @@ function AuthDialog({
                   ? 'Signing in…'
                   : authMode === 'signup'
                   ? 'Creating account…'
+                  : authMode === 'magic-link'
+                  ? 'Sending sign-in link…'
                   : 'Sending reset link…'
                 : authMode === 'login'
                 ? 'Log in'
                 : authMode === 'signup'
                 ? 'Create account'
+                : authMode === 'magic-link'
+                ? 'Send sign-in link'
                 : 'Send reset link'}
             </button>
             <button type="button" className="dialog-secondary-button" onClick={() => setShowLoginDialog(false)}>
@@ -131,21 +147,36 @@ function AuthDialog({
               ? 'Need an account? Create one'
               : authMode === 'signup'
               ? 'Already have an account? Log in'
+              : authMode === 'magic-link'
+              ? 'Back to log in'
               : 'Back to log in'}
           </button>
 
           {authMode === 'login' ? (
-            <button
-              type="button"
-              className="dialog-switch-mode"
-              onClick={() => {
-                setAuthMode('reset')
-                setAuthError('')
-                setAuthNotice('')
-              }}
-            >
-              Forgot password?
-            </button>
+            <>
+              <button
+                type="button"
+                className="dialog-switch-mode"
+                onClick={() => {
+                  setAuthMode('reset')
+                  setAuthError('')
+                  setAuthNotice('')
+                }}
+              >
+                Forgot password?
+              </button>
+              <button
+                type="button"
+                className="dialog-switch-mode"
+                onClick={() => {
+                  setAuthMode('magic-link')
+                  setAuthError('')
+                  setAuthNotice('')
+                }}
+              >
+                Email me a sign-in link
+              </button>
+            </>
           ) : null}
         </form>
       </div>

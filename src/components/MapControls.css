@@ -1,10 +1,15 @@
-/* Floating map control buttons shared base styling */
-.map-layer-button,
-.map-locate-button,
+
+/* Login button styling (overlay handles other controls) */
 .map-login-button {
   position: absolute;
-  left: 18px;
+  top: 110px;
+  right: 18px;
   z-index: 900;
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 999px;
   padding: 8px 12px;
@@ -16,30 +21,38 @@
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
-.map-layer-button {
-  top: 150px;
+.map-layer-selector {
+  z-index: 910;
+  width: min(220px, calc(100vw - 54px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.25);
 }
 
-.map-locate-button {
-  top: 190px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  padding: 0;
+.map-layer-option {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+  text-align: left;
+  cursor: pointer;
 }
 
-.map-login-button {
-  top: 110px;
-  left: auto;
-  right: 18px;
-  width: 52px;
-  height: 52px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.map-layer-option:hover,
+.map-layer-option.active {
+  background: rgba(59, 130, 246, 0.16);
 }
+
+/* map-locate-button moved into overlay component; keep login button styled above */
 
 /* Login button floating in the top-right corner */
 
@@ -51,10 +64,8 @@
 
 /* Group wrapper for the stacked zoom buttons and zoom level badge */
 .zoom-controls-group {
-  position: absolute;
-  top: 82px;
-  left: 18px;
-  z-index: 900;
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -103,7 +114,7 @@
   background: rgba(15, 23, 42, 0.92);
   color: #f8fafc;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 /* Floating tile error notice at the bottom of the map */
@@ -113,6 +124,9 @@
   bottom: 18px;
   transform: translateX(-50%);
   z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   max-width: min(420px, calc(100% - 32px));
   padding: 10px 14px;
   border-radius: 999px;
@@ -122,7 +136,45 @@
   font-weight: 600;
   text-align: center;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+/* Map overlay container */
+.map-overlay {
+  position: absolute;
+  z-index: 900;
+  padding: 8px;
+  pointer-events: auto;
+}
+
+.map-overlay.top-left { top: 100px; left: 18px; }
+.map-overlay.top-right { top: 100px; right: 18px; }
+.map-overlay.bottom-left { bottom: 18px; left: 18px; }
+.map-overlay.bottom-right { bottom: 18px; right: 18px; }
+
+.map-overlay.vertical .overlay-controls { display: flex; flex-direction: column; gap: 8px; }
+.map-overlay.horizontal .overlay-controls { display: flex; flex-direction: row; gap: 8px; align-items: center; }
+
+.overlay-button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+  background: rgba(15,23,42,0.92);
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.overlay-button.locate { width: 56px; }
+
+.tile-notice-dismiss {
+  border: none;
+  background: transparent;
+  color: #fda4af;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
 }
 
 /* Floating user menu panel that appears when signed in */

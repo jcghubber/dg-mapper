@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
-import { supabase } from './lib/supabase'
-import AuthDialog from './components/AuthDialog'
-import MapControls from './components/MapControls'
+import { supabase, supabaseUrl, supabaseAnonKey } from './lib/supabase.js'
+import AuthDialog from './components/AuthDialog.js'
+import MapControls from './components/MapControls.js'
+import MapOverlay from './components/MapOverlay.js'
+import ResetPasswordConfirm from './components/ResetPasswordConfirm.js'
+import { tileLayers, type TileLayerId } from './tileLayers.js'
+import ArcGISImageLayer from './components/ArcGISImageLayer.js'
 import './App.css'
 
 let hasAttemptedInitialLocation = false
 
-type MapLayer = 'osm' | 'satellite'
-type AuthMode = 'login' | 'signup' | 'reset'
+type MapLayer = TileLayerId
+type AuthMode = 'login' | 'signup' | 'reset' | 'magic-link'
 
-const points = [
+const points: { name: string; position: [number, number]; description: string }[] = [
   {
     name: 'River Walk',
     position: [51.505, -0.09],
@@ -41,63 +45,14 @@ function RecenterAutomatically({ position }: { position: [number, number] }) {
   return null
 }
 
-function ZoomControlOverlay() {
-  const map = useMap()
-  const [zoom, setZoom] = useState<number>(map.getZoom())
-
-  useEffect(() => {
-    const updateZoom = () => setZoom(map.getZoom())
-
-    updateZoom()
-    map.on('zoom', updateZoom)
-    map.on('zoomend', updateZoom)
-
-    return () => {
-      map.off('zoom', updateZoom)
-      map.off('zoomend', updateZoom)
-    }
-  }, [map])
-
-  const handleZoomChange = (delta: number) => {
-    map.setZoom(map.getZoom() + delta)
-  }
-
-  return (
-    <div className="zoom-controls-group" aria-label="Map zoom controls">
-      <div className="zoom-button-stack" role="group" aria-label="Zoom controls">
-        <button
-          type="button"
-          className="zoom-control-button"
-          onClick={() => handleZoomChange(1)}
-          aria-label="Zoom in"
-          title="Zoom in"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className="zoom-control-button"
-          onClick={() => handleZoomChange(-1)}
-          aria-label="Zoom out"
-          title="Zoom out"
-        >
-          −
-        </button>
-      </div>
-
-      <div className="map-zoom-display" aria-label={`Current zoom level ${zoom}`} title={`Zoom level ${zoom}`}>
-        Zoom {zoom}
-      </div>
-    </div>
-  )
-}
+// zoom controls and layer/locate are provided via MapOverlay component
 
 function App() {
   const [position, setPosition] = useState<[number, number]>([51.505, -0.09])
   const [locationError, setLocationError] = useState('')
   const [isLocating, setIsLocating] = useState(false)
-  const [panelOpen, setPanelOpen] = useState(true)
-  const [mapLayer, setMapLayer] = useState<MapLayer>('osm')
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [mapLayer, setMapLayer] = useState<MapLayer>((tileLayers[0]?.id ?? 'osm') as TileLayerId)
   const [user, setUser] = useState<User | null>(null)
   const isLoggedIn = Boolean(user)
   const [authMode, setAuthMode] = useState<AuthMode>('login')
@@ -108,7 +63,9 @@ function App() {
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showConfirmReset, setShowConfirmReset] = useState(false)
   const [tileNotice, setTileNotice] = useState('')
+  const tileErrorCountRef = useRef(0)
   const mapLoginButtonRef = useRef<HTMLButtonElement | null>(null)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const loginDialogRef = useRef<HTMLDivElement | null>(null)
@@ -127,7 +84,7 @@ function App() {
     navigator.geolocation.getCurrentPosition(
       (geoPosition) => {
         console.log('Geolocation success:', geoPosition)
-        const nextPosition = [geoPosition.coords.latitude, geoPosition.coords.longitude]
+        const nextPosition: [number, number] = [geoPosition.coords.latitude, geoPosition.coords.longitude]
         setPosition(nextPosition)
         setIsLocating(false)
       },
@@ -153,17 +110,33 @@ function App() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
+    supabase.auth.getSession().then((res: any) => {
+      setUser(res.data.session?.user ?? null)
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       setUser(session?.user ?? null)
     })
 
     return () => listener.subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href)
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''))
+      const queryParams = new URLSearchParams(url.search)
+      const type = hashParams.get('type') ?? queryParams.get('type')
+
+      if (type === 'recovery') {
+        ;(supabase.auth as any).getSessionFromUrl?.({ storeSession: true }).catch(() => {})
+        setShowConfirmReset(true)
+      }
+    } catch (err) {
+      // ignore malformed URL handling
+    }
+  }, [])
+  
   useEffect(() => {
     const handleBodyClick = (event: MouseEvent) => {
       if (!(event.target instanceof Node)) {
@@ -262,8 +235,65 @@ function App() {
     setAuthNotice('')
     setIsAuthenticating(true)
 
-    const { data, error } = await supabase.auth.resetPasswordForEmail(authEmail, {
-      redirectTo: window.location.origin,
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+        redirectTo: window.location.origin,
+      })
+
+      setIsAuthenticating(false)
+
+      if (error) {
+        console.error('Reset password error:', error, 'data:', data)
+        // attempt a direct fetch to surface low-level response for debugging
+        try {
+          const debugUrl = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/recover`
+          const debugRes = await fetch(debugUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: supabaseAnonKey ?? '',
+              Authorization: `Bearer ${supabaseAnonKey ?? ''}`,
+            },
+            body: JSON.stringify({ email: authEmail, redirect_to: window.location.origin }),
+          })
+
+          let debugBody: any = null
+          try {
+            debugBody = await debugRes.text()
+          } catch (e) {
+            debugBody = '<no body>'
+          }
+
+          console.debug('Direct fetch to recover endpoint:', { debugUrl, status: debugRes.status, body: debugBody })
+        } catch (fetchErr) {
+          console.error('Direct recover fetch failed:', fetchErr)
+        }
+
+        setAuthError(error.message ?? JSON.stringify(error))
+        return
+      }
+
+      console.debug('Reset password sent:', data)
+      setAuthNotice('Check your email for a password reset link.')
+      setAuthEmail('')
+    } catch (err) {
+      setIsAuthenticating(false)
+      console.error('Reset password exception:', err)
+      setAuthError((err as any)?.message ?? JSON.stringify(err))
+    }
+  }
+
+  const handleMagicLinkLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAuthError('')
+    setAuthNotice('')
+    setIsAuthenticating(true)
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: authEmail,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
     })
 
     setIsAuthenticating(false)
@@ -273,10 +303,8 @@ function App() {
       return
     }
 
-    setAuthNotice('Check your email for a password reset link.')
-    if (data?.user) {
-      setAuthEmail('')
-    }
+    setAuthNotice('Check your email for a secure sign-in link.')
+    setAuthEmail('')
   }
 
   const handleLogout = async () => {
@@ -288,15 +316,88 @@ function App() {
     setShowUserMenu((current) => !current)
   }
 
-  const handleTileError = (event: { target?: { _map?: { getZoom?: () => number } } }) => {
-    const layerName = mapLayer === 'osm' ? 'OpenStreetMap' : 'satellite imagery'
-    const zoom = event?.target?._map?.getZoom?.() ?? 'the current zoom level'
-    setTileNotice(`No tiles available for ${layerName} at zoom ${zoom}. Try zooming out or switching layers.`)
+  // const activeLayer = tileLayers.find((layer: any) => layer.id === mapLayer) ?? tileLayers[0]!
+
+  // const handleTileError = (event: any) => {
+  //   const tile = event?.tile
+  //   const src = tile?.src
+  //   const zoom = event?.coords?.z ?? event?.target?._map?.getZoom?.() ?? 'unknown'
+
+  //   tileErrorCountRef.current += 1
+
+  //   console.error('Leaflet tile error:', {
+  //     layer: activeLayer.label,
+  //     zoom,
+  //     url: src,
+  //     errorCount: tileErrorCountRef.current,
+  //     event,
+  //   })
+
+  //   // Don't bother the user for an isolated tile failure.
+  //   if (tileErrorCountRef.current < 5) {
+  //     return
+  //   }
+
+  //   setTileNotice(
+  //     `Unable to load some ${activeLayer.label} map tiles. Try zooming out or switching layers.`,
+  //   )
+  // }
+
+  // useEffect(() => {
+  //   tileErrorCountRef.current = 0
+  //   setTileNotice('')
+  // }, [mapLayer])
+
+  // const dismissTileNotice = () => {
+  //   setTileNotice('')
+  // }
+
+  // const handleTileLoad = () => {
+  //   // Keep the notice visible until the user dismisses it.
+    
+  // }
+
+  const activeLayer =
+    tileLayers.find((layer) => layer.id === mapLayer) ?? tileLayers[0]!
+
+  const handleTileError = (event: any) => {
+    const tile = event?.tile
+    const src = tile?.src
+    const zoom =
+      event?.coords?.z ??
+      event?.target?._map?.getZoom?.() ??
+      'unknown'
+
+    tileErrorCountRef.current += 1
+
+    console.error('Leaflet tile error:', {
+      layer: activeLayer.label,
+      zoom,
+      url: src,
+      errorCount: tileErrorCountRef.current,
+      event,
+    })
+
+    if (tileErrorCountRef.current >= 5) {
+      setTileNotice(
+        `Unable to load ${activeLayer.label} tiles at this location. Try zooming out or switching layers.`,
+      )
+    }
   }
 
   const handleTileLoad = () => {
+    tileErrorCountRef.current = 0
     setTileNotice('')
   }
+
+  const dismissTileNotice = () => {
+    setTileNotice('')
+  }
+
+  useEffect(() => {
+    tileErrorCountRef.current = 0
+    setTileNotice('')
+  }, [mapLayer])
 
   return (
     <main className={`app-shell ${panelOpen ? '' : 'collapsed'}`}>
@@ -344,9 +445,6 @@ function App() {
         ) : null}
 
         <MapControls
-          mapLayer={mapLayer}
-          setMapLayer={setMapLayer}
-          locateUser={locateUser}
           isLoggedIn={isLoggedIn}
           toggleUserMenu={toggleUserMenu}
           showUserMenu={showUserMenu}
@@ -374,43 +472,88 @@ function App() {
           setAuthMode={setAuthMode}
           setAuthEmail={setAuthEmail}
           setAuthPassword={setAuthPassword}
+          setAuthError={setAuthError}
+          setAuthNotice={setAuthNotice}
           setShowLoginDialog={setShowLoginDialog}
           handleLogin={handleLogin}
           handleSignup={handleSignup}
           handleResetPassword={handleResetPassword}
+          handleMagicLinkLogin={handleMagicLinkLogin}
         />
+
+        {showConfirmReset ? (
+          <ResetPasswordConfirm
+            onDone={(success) => {
+              setShowConfirmReset(false)
+              if (success) {
+                setShowLoginDialog(false)
+                setShowUserMenu(false)
+              }
+            }}
+          />
+        ) : null}
+
         <MapContainer center={position} zoom={13} scrollWheelZoom zoomControl={false} maxZoom={23}>
           {tileNotice ? (
             <div className="tile-notice" role="status">
-              {tileNotice}
+              <span>{tileNotice}</span>
+              <button type="button" className="tile-notice-dismiss" onClick={dismissTileNotice} aria-label="Dismiss tile notice">
+                ×
+              </button>
             </div>
           ) : null}
-          {mapLayer === 'osm' ? (
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maxZoom={23}
-              maxNativeZoom={19}
-              eventHandlers={{
-                tileerror: handleTileError,
-                load: handleTileLoad,
-              }}
-            />
-          ) : (
-            <TileLayer
-              attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxZoom={23}
-              maxNativeZoom={23}
-              eventHandlers={{
-                tileerror: handleTileError,
-                load: handleTileLoad,
-              }}
-            />
-          )}
+          {/* {(() => {
+            const activeLayer = tileLayers.find((layer: any) => layer.id === mapLayer) ?? tileLayers[0]!
+            return (
+              <TileLayer
+                attribution={activeLayer.attribution}
+                url={activeLayer.url}
+                maxZoom={activeLayer.maxZoom ?? 23}
+                maxNativeZoom={activeLayer.maxNativeZoom ?? 23}
+                eventHandlers={{
+                  tileerror: handleTileError,
+                  load: handleTileLoad,
+                }}
+              />
+            )
+          })()} */}
+          {(() => {
+            const activeLayer =
+              tileLayers.find((layer) => layer.id === mapLayer) ?? tileLayers[0]!
+
+            if (activeLayer.type === 'image') {
+              return (
+                <ArcGISImageLayer
+                  url={activeLayer.url}
+                  attribution={activeLayer.attribution}
+                  maxZoom={activeLayer.maxZoom ?? 23}
+                />
+              )
+            }
+
+            return (
+              <TileLayer
+                attribution={activeLayer.attribution}
+                url={activeLayer.url}
+                maxZoom={activeLayer.maxZoom ?? 23}
+                maxNativeZoom={activeLayer.maxNativeZoom ?? 23}
+                eventHandlers={{
+                  tileerror: handleTileError,
+                  load: handleTileLoad,
+                }}
+              />
+            )
+          })()}
 
           <RecenterAutomatically position={position} />
-          <ZoomControlOverlay />
+          <MapOverlay
+            layers={tileLayers}
+            mapLayer={mapLayer}
+            setMapLayer={setMapLayer}
+            locateUser={locateUser}
+            position="top-left"
+            orientation="vertical"
+          />
 
           {points.map((point) => (
             <CircleMarker
