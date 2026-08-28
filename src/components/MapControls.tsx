@@ -1,4 +1,22 @@
+import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { User } from '@supabase/supabase-js'
 import './MapControls.css'
+
+type MapLayer = 'osm' | 'satellite'
+
+type MapControlsProps = {
+  mapLayer: MapLayer
+  setMapLayer: Dispatch<SetStateAction<MapLayer>>
+  locateUser: () => void
+  isLoggedIn: boolean
+  toggleUserMenu: () => void
+  showUserMenu: boolean
+  mapLoginButtonRef: RefObject<HTMLButtonElement>
+  userMenuRef: RefObject<HTMLDivElement>
+  handleLogout: () => void
+  openLoginDialog: () => void
+  user: User | null
+}
 
 function MapControls({
   mapLayer,
@@ -12,7 +30,7 @@ function MapControls({
   handleLogout,
   openLoginDialog,
   user,
-}) {
+}: MapControlsProps) {
   return (
     <>
       <button

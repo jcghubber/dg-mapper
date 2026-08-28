@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
 import { supabase } from './lib/supabase'
 import AuthDialog from './components/AuthDialog'
@@ -6,6 +7,9 @@ import MapControls from './components/MapControls'
 import './App.css'
 
 let hasAttemptedInitialLocation = false
+
+type MapLayer = 'osm' | 'satellite'
+type AuthMode = 'login' | 'signup' | 'reset'
 
 const points = [
   {
@@ -25,7 +29,7 @@ const points = [
   },
 ]
 
-function RecenterAutomatically({ position }) {
+function RecenterAutomatically({ position }: { position: [number, number] }) {
   const map = useMap()
 
   useEffect(() => {
@@ -39,7 +43,7 @@ function RecenterAutomatically({ position }) {
 
 function ZoomControlOverlay() {
   const map = useMap()
-  const [zoom, setZoom] = useState(map.getZoom())
+  const [zoom, setZoom] = useState<number>(map.getZoom())
 
   useEffect(() => {
     const updateZoom = () => setZoom(map.getZoom())
@@ -54,7 +58,7 @@ function ZoomControlOverlay() {
     }
   }, [map])
 
-  const handleZoomChange = (delta) => {
+  const handleZoomChange = (delta: number) => {
     map.setZoom(map.getZoom() + delta)
   }
 
@@ -89,14 +93,14 @@ function ZoomControlOverlay() {
 }
 
 function App() {
-  const [position, setPosition] = useState([51.505, -0.09])
+  const [position, setPosition] = useState<[number, number]>([51.505, -0.09])
   const [locationError, setLocationError] = useState('')
   const [isLocating, setIsLocating] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
-  const [mapLayer, setMapLayer] = useState('osm')
-  const [user, setUser] = useState(null)
+  const [mapLayer, setMapLayer] = useState<MapLayer>('osm')
+  const [user, setUser] = useState<User | null>(null)
   const isLoggedIn = Boolean(user)
-  const [authMode, setAuthMode] = useState('login')
+  const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authError, setAuthError] = useState('')
@@ -105,10 +109,10 @@ function App() {
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [tileNotice, setTileNotice] = useState('')
-  const mapLoginButtonRef = useRef(null)
-  const userMenuRef = useRef(null)
-  const loginDialogRef = useRef(null)
-  const panelRef = useRef(null)
+  const mapLoginButtonRef = useRef<HTMLButtonElement | null>(null)
+  const userMenuRef = useRef<HTMLDivElement | null>(null)
+  const loginDialogRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
 
   const locateUser = () => {
     if (!navigator.geolocation) {
@@ -161,7 +165,11 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const handleBodyClick = (event) => {
+    const handleBodyClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) {
+        return
+      }
+
       if (
         showUserMenu &&
         userMenuRef.current &&
@@ -189,7 +197,7 @@ function App() {
     return () => document.removeEventListener('mousedown', handleBodyClick)
   }, [panelOpen, showLoginDialog, showUserMenu])
 
-  const handleLogin = async (event) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setAuthError('')
     setAuthNotice('')
@@ -217,7 +225,7 @@ function App() {
     }
   }
 
-  const handleSignup = async (event) => {
+  const handleSignup = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setAuthError('')
     setAuthNotice('')
@@ -248,7 +256,7 @@ function App() {
     setAuthNotice('Check your email for a confirmation link, then sign in.')
   }
 
-  const handleResetPassword = async (event) => {
+  const handleResetPassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setAuthError('')
     setAuthNotice('')
@@ -280,7 +288,7 @@ function App() {
     setShowUserMenu((current) => !current)
   }
 
-  const handleTileError = (event) => {
+  const handleTileError = (event: { target?: { _map?: { getZoom?: () => number } } }) => {
     const layerName = mapLayer === 'osm' ? 'OpenStreetMap' : 'satellite imagery'
     const zoom = event?.target?._map?.getZoom?.() ?? 'the current zoom level'
     setTileNotice(`No tiles available for ${layerName} at zoom ${zoom}. Try zooming out or switching layers.`)

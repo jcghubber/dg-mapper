@@ -12,8 +12,10 @@ DG Mapper is a Vite + React app built with Leaflet that shows a slippy map, samp
 
 ## Main files
 
-- [src/App.jsx](src/App.jsx): app logic, geolocation, panel toggle state, and map rendering.
+- [src/App.tsx](src/App.tsx): app logic, geolocation, panel toggle state, and map rendering.
 - [src/App.css](src/App.css): layout, overlay panel styling, and map UI behavior.
+- [src/lib/supabase.ts](src/lib/supabase.ts): Supabase client initialization.
+- [vite.config.ts](vite.config.ts): Vite build configuration.
 
 ## Development
 
@@ -27,3 +29,10 @@ npm run dev
 -explore maximum zoom level
 -explore hosting on vercel or cloudshare
 -have a scale at page bottom
+
+requirements
+-create/move/delete tees
+-create/move/delete baskets
+-create/delete hole
+-create/delete course
+-publish/unpublish course

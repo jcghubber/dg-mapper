@@ -1,4 +1,25 @@
+import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react'
 import './AuthDialog.css'
+
+type AuthMode = 'login' | 'signup' | 'reset'
+
+type AuthDialogProps = {
+  showLoginDialog: boolean
+  loginDialogRef: RefObject<HTMLDivElement>
+  authMode: AuthMode
+  authEmail: string
+  authPassword: string
+  authError: string
+  authNotice: string
+  isAuthenticating: boolean
+  setAuthMode: Dispatch<SetStateAction<AuthMode>>
+  setAuthEmail: Dispatch<SetStateAction<string>>
+  setAuthPassword: Dispatch<SetStateAction<string>>
+  setShowLoginDialog: Dispatch<SetStateAction<boolean>>
+  handleLogin: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  handleSignup: (event: FormEvent<HTMLFormElement>) => Promise<void>
+  handleResetPassword: (event: FormEvent<HTMLFormElement>) => Promise<void>
+}
 
 function AuthDialog({
   showLoginDialog,
@@ -16,7 +37,7 @@ function AuthDialog({
   handleLogin,
   handleSignup,
   handleResetPassword,
-}) {
+}: AuthDialogProps) {
   if (!showLoginDialog) {
     return null
   }
