@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
+import { Alert, Button, Group, Modal, PasswordInput, Stack, Text } from '@mantine/core'
+import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase.js'
-import './AuthDialog.css'
 
 type Props = {
   onDone: (success?: boolean) => void
@@ -13,8 +14,8 @@ export default function ResetPasswordConfirm({ onDone }: Props) {
   const [notice, setNotice] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     setError('')
     setNotice('')
 
@@ -28,10 +29,11 @@ export default function ResetPasswordConfirm({ onDone }: Props) {
     }
 
     setIsSubmitting(true)
+
     try {
-      const { error } = await supabase.auth.updateUser({ password })
-      if (error) {
-        setError(error.message || 'Unable to update password')
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) {
+        setError(updateError.message || 'Unable to update password')
         setIsSubmitting(false)
         return
       }
@@ -53,31 +55,55 @@ export default function ResetPasswordConfirm({ onDone }: Props) {
   }
 
   return (
-    <div className="dialog-backdrop" role="dialog" aria-modal="true">
-      <div className="login-dialog">
-        <h2>Reset your password</h2>
-        <p>Enter a new password to update your account.</p>
+    <Modal
+      opened
+      onClose={() => onDone(false)}
+      title="Reset your password"
+      centered
+      radius="lg"
+    >
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          Enter a new password to update your account.
+        </Text>
 
-        <form className="login-form" onSubmit={submit}>
-          <label htmlFor="new-password">New password</label>
-          <input id="new-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <form onSubmit={submit}>
+          <Stack gap="sm">
+            <PasswordInput
+              label="New password"
+              value={password}
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              required
+            />
+            <PasswordInput
+              label="Confirm password"
+              value={confirm}
+              onChange={(event) => setConfirm(event.currentTarget.value)}
+              required
+            />
 
-          <label htmlFor="confirm-password">Confirm password</label>
-          <input id="confirm-password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+            {error ? (
+              <Alert color="red" icon={<IconAlertCircle size={16} />} variant="light">
+                {error}
+              </Alert>
+            ) : null}
+            {notice ? (
+              <Alert color="blue" icon={<IconInfoCircle size={16} />} variant="light">
+                {notice}
+              </Alert>
+            ) : null}
 
-          {error ? <p className="status-text error">{error}</p> : null}
-          {notice ? <p className="status-text">{notice}</p> : null}
-
-          <div className="dialog-actions-row">
-            <button type="submit" className="dialog-action-button" disabled={isSubmitting}>
-              {isSubmitting ? 'Updating…' : 'Set new password'}
-            </button>
-            <button type="button" className="dialog-secondary-button" onClick={() => onDone(false)}>
-              Cancel
-            </button>
-          </div>
+            <Group justify="flex-end" gap="sm">
+              <Button variant="default" type="button" onClick={() => onDone(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={isSubmitting}>
+                {isSubmitting ? 'Updating…' : 'Set new password'}
+              </Button>
+            </Group>
+          </Stack>
         </form>
-      </div>
-    </div>
+      </Stack>
+    </Modal>
   )
 }

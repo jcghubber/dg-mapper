@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMap } from 'react-leaflet'
+import { ActionIcon, Badge, Group, Menu, Stack } from '@mantine/core'
+import { IconCheck, IconCurrentLocation, IconLayersLinked, IconMinus, IconPlus } from '@tabler/icons-react'
 import type { TileLayerConfig, TileLayerId } from '../tileLayers.js'
 import './MapControls.css'
 
@@ -27,7 +29,6 @@ function MapOverlay({
 }: Props) {
   const map = useMap()
   const [zoom, setZoom] = useState<number>(map.getZoom())
-  const [showLayerOptions, setShowLayerOptions] = useState(false)
 
   useEffect(() => {
     const updateZoom = () => setZoom(map.getZoom())
@@ -47,72 +48,98 @@ function MapOverlay({
   const activeLayer = layers.find((l) => l.id === mapLayer)
 
   const layerControl = (
-    <div className="layer-group" key="layer">
-      <button
-        type="button"
-        className="overlay-button"
-        onClick={() => setShowLayerOptions((s) => !s)}
-        title={activeLayer?.label ?? 'Layers'}
-        aria-label="Select tile layer"
-      >
-        {activeLayer?.label ?? 'Layers'}
-      </button>
-      {showLayerOptions ? (
-        <div className="map-layer-selector" role="dialog" aria-label="Select tile layer">
-          {layers.map((layer) => (
-            <button
-              type="button"
-              key={layer.id}
-              className={`map-layer-option ${layer.id === mapLayer ? 'active' : ''}`}
-              onClick={() => {
-                setMapLayer(layer.id)
-                setShowLayerOptions(false)
-              }}
-            >
-              {layer.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <Menu key="layer" shadow="md" width={220} position="bottom-start" withinPortal zIndex={2000}>
+      <Menu.Target>
+        <ActionIcon
+          size={44}
+          radius="xl"
+          variant="filled"
+          title={activeLayer?.label ?? 'Layers'}
+          aria-label="Select tile layer"
+        >
+          <IconLayersLinked size={20} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {layers.map((layer) => (
+          <Menu.Item
+            key={layer.id}
+            onClick={() => setMapLayer(layer.id)}
+            fw={layer.id === mapLayer ? 700 : 400}
+            rightSection={layer.id === mapLayer ? <IconCheck size={16} /> : null}
+          >
+            {layer.label}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   )
 
   const zoomControl = (
-    <div className="zoom-controls-group" key="zoom" aria-label="Map zoom controls">
-      <div className="zoom-button-stack" role="group" aria-label="Zoom controls">
-        <button type="button" className="zoom-control-button" onClick={() => handleZoomChange(1)} title="Zoom in">
-          +
-        </button>
-        <button type="button" className="zoom-control-button" onClick={() => handleZoomChange(-1)} title="Zoom out">
-          −
-        </button>
-      </div>
-      <div className="map-zoom-display" aria-label={`Current zoom level ${zoom}`} title={`Zoom level ${zoom}`}>
+    <Stack key="zoom" gap={6} align="center">
+      <ActionIcon.Group orientation="vertical">
+        <ActionIcon
+          size={36}
+          radius="xl"
+          variant="filled"
+          onClick={() => handleZoomChange(1)}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <IconPlus size={18} />
+        </ActionIcon>
+        <ActionIcon
+          size={36}
+          radius="xl"
+          variant="filled"
+          onClick={() => handleZoomChange(-1)}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <IconMinus size={18} />
+        </ActionIcon>
+      </ActionIcon.Group>
+      <Badge
+        size="lg"
+        radius="xl"
+        variant="filled"
+        color="dark"
+        title={`Zoom level ${zoom}`}
+        aria-label={`Current zoom level ${zoom}`}
+      >
         Zoom {zoom}
-      </div>
-    </div>
+      </Badge>
+    </Stack>
   )
 
   const locateControl = (
-    <button type="button" className="overlay-button locate" key="locate" onClick={locateUser} title="Find my location" aria-label="Find my location">
-      Locate
-    </button>
+    <ActionIcon
+      key="locate"
+      size={44}
+      radius="xl"
+      variant="filled"
+      onClick={locateUser}
+      title="Find my location"
+      aria-label="Find my location"
+    >
+      <IconCurrentLocation size={20} />
+    </ActionIcon>
   )
 
-  const renderMap = () => (
+  const Layout = orientation === 'vertical' ? Stack : Group
+
+  return (
     <div className={`map-overlay ${position} ${orientation}`} role="region" aria-label="Map controls">
-      <div className="overlay-controls">
-        {controlsOrder.map((k) => {
-          if (k === 'layer') return layerControl
-          if (k === 'zoom') return zoomControl
-          if (k === 'locate') return locateControl
+      <Layout gap={8}>
+        {controlsOrder.map((key) => {
+          if (key === 'layer') return layerControl
+          if (key === 'zoom') return zoomControl
+          if (key === 'locate') return locateControl
           return null
         })}
-      </div>
+      </Layout>
     </div>
   )
-
-  return renderMap()
 }
 
 export default MapOverlay

@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
-import type { TileErrorEvent } from 'leaflet'
+import type { Map as LeafletMap, TileErrorEvent } from 'leaflet'
+import { ActionIcon, Badge, Button, Group, Paper, SegmentedControl, Stack, Text, Title } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import { IconEdit, IconEye, IconMenu2, IconPlus, IconX } from '@tabler/icons-react'
 import { supabase } from './lib/supabase.js'
 import AuthDialog from './components/AuthDialog.js'
 import MapControls from './components/MapControls.js'
 import MapOverlay from './components/MapOverlay.js'
 import ResetPasswordConfirm from './components/ResetPasswordConfirm.js'
+import CourseLayer from './components/CourseLayer.js'
+import { useDefaultCourse } from './hooks/useDefaultCourse.js'
+import { useCourseData } from './hooks/useCourseData.js'
 import { tileLayers, type TileLayerId } from './tileLayers.js'
 import ArcGISImageLayer from './components/ArcGISImageLayer.js'
 import './App.css'
@@ -14,23 +20,7 @@ import './App.css'
 type MapLayer = TileLayerId
 type AuthMode = 'login' | 'signup' | 'reset' | 'magic-link'
 
-const points: { name: string; position: [number, number]; description: string }[] = [
-  {
-    name: 'River Walk',
-    position: [51.505, -0.09],
-    description: 'A calm riverside stop with skyline views.',
-  },
-  {
-    name: 'Old Town',
-    position: [51.51, -0.1],
-    description: 'Historic streets and cozy cafés.',
-  },
-  {
-    name: 'Harbor Point',
-    position: [51.499, -0.08],
-    description: 'A breezy waterfront for a quick break.',
-  },
-]
+const TILE_NOTICE_ID = 'tile-error-notice'
 
 function RecenterAutomatically({ position }: { position: [number, number] }) {
   const map = useMap()
@@ -47,13 +37,29 @@ function RecenterAutomatically({ position }: { position: [number, number] }) {
 // zoom controls and layer/locate are provided via MapOverlay component
 
 function App() {
-  const [position, setPosition] = useState<[number, number]>([51.505, -0.09])
+  // Default center: Canberra, ACT — matches the app's Canberra aerial imagery
+  // layers and existing test data. Overridden by real geolocation on load if
+  // available (see the permissions-check effect below).
+  const [position, setPosition] = useState<[number, number]>([-35.3075, 149.1244])
   const [locationError, setLocationError] = useState('')
   const [isLocating, setIsLocating] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [mapLayer, setMapLayer] = useState<MapLayer>((tileLayers[0]?.id ?? 'osm') as TileLayerId)
   const [user, setUser] = useState<User | null>(null)
   const isLoggedIn = Boolean(user)
+  const { course, courseId, loading: courseLoading, error: courseError } = useDefaultCourse(user?.id ?? null)
+  const { points, holes, addPoint, removePoint } = useCourseData(courseId)
+
+  // Course-edit mode vs. the default view mode — see architecture.md §3. Only the
+  // course's owner can ever be in edit mode; a non-owner (once viewing other users'
+  // public courses is built) should never see editing affordances at all, regardless
+  // of local state, hence deriving `isEditMode` from `isOwner` rather than trusting
+  // `editModeRequested` alone.
+  const isOwner = Boolean(user && course && course.created_by === user.id)
+  const [editModeRequested, setEditModeRequested] = useState(false)
+  const isEditMode = isOwner && editModeRequested
+
+  const testPointCountRef = useRef(0)
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
@@ -61,14 +67,10 @@ function App() {
   const [authNotice, setAuthNotice] = useState('')
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
-  const [showUserMenu, setShowUserMenu] = useState(false)
   const [showConfirmReset, setShowConfirmReset] = useState(false)
-  const [tileNotice, setTileNotice] = useState('')
   const tileErrorCountRef = useRef(0)
-  const mapLoginButtonRef = useRef<HTMLButtonElement | null>(null)
-  const userMenuRef = useRef<HTMLDivElement | null>(null)
-  const loginDialogRef = useRef<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
 
   const locateUser = () => {
     if (!navigator.geolocation) {
@@ -127,38 +129,23 @@ function App() {
     return () => listener.subscription.unsubscribe()
   }, [])
 
+  // Mantine's Modal (AuthDialog, ResetPasswordConfirm) and Menu (MapControls' user menu)
+  // handle their own backdrop/outside-click behavior internally, so this effect now only
+  // needs to manage the hero panel, which is a bespoke collapse-on-outside-click element.
   useEffect(() => {
     const handleBodyClick = (event: MouseEvent) => {
       if (!(event.target instanceof Node)) {
         return
       }
 
-      if (
-        showUserMenu &&
-        userMenuRef.current &&
-        mapLoginButtonRef.current &&
-        !userMenuRef.current.contains(event.target) &&
-        !mapLoginButtonRef.current.contains(event.target)
-      ) {
-        setShowUserMenu(false)
-      }
-
-      if (showLoginDialog && loginDialogRef.current && !loginDialogRef.current.contains(event.target)) {
-        setShowLoginDialog(false)
-      }
-
-      if (
-        panelOpen &&
-        panelRef.current &&
-        !panelRef.current.contains(event.target)
-      ) {
+      if (panelOpen && panelRef.current && !panelRef.current.contains(event.target)) {
         setPanelOpen(false)
       }
     }
 
     document.addEventListener('mousedown', handleBodyClick)
     return () => document.removeEventListener('mousedown', handleBodyClick)
-  }, [panelOpen, showLoginDialog, showUserMenu])
+  }, [panelOpen])
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -180,7 +167,6 @@ function App() {
 
     if (data.session?.user) {
       setShowLoginDialog(false)
-      setShowUserMenu(false)
       setAuthEmail('')
       setAuthPassword('')
       setAuthError('')
@@ -208,7 +194,6 @@ function App() {
 
     if (data.session?.user) {
       setShowLoginDialog(false)
-      setShowUserMenu(false)
       setAuthEmail('')
       setAuthPassword('')
       setAuthError('')
@@ -266,11 +251,30 @@ function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    setShowUserMenu(false)
   }
 
-  const toggleUserMenu = () => {
-    setShowUserMenu((current) => !current)
+  // TEMPORARY: quick way to verify the Supabase data layer end-to-end through the UI,
+  // before the real long-press "add point" flow exists. Adds a point at the current
+  // map center, alternating tee/basket. Remove once that flow is built.
+  const handleAddTestPoint = async () => {
+    const center = mapRef.current?.getCenter()
+    if (!center) {
+      notifications.show({ color: 'red', message: 'Map not ready yet — try again in a moment.' })
+      return
+    }
+
+    testPointCountRef.current += 1
+    const n = testPointCountRef.current
+    const type = n % 2 === 1 ? 'tee' : 'basket'
+    try {
+      await addPoint({ type, name: `Test ${type} ${n}`, lat: center.lat, lng: center.lng })
+      notifications.show({ color: 'green', message: `Added test ${type} at crosshair.` })
+    } catch (err) {
+      notifications.show({
+        color: 'red',
+        message: err instanceof Error ? err.message : 'Failed to add test point.',
+      })
+    }
   }
 
   const activeLayer =
@@ -280,77 +284,144 @@ function App() {
     tileErrorCountRef.current += 1
 
     if (tileErrorCountRef.current >= 5) {
-      setTileNotice(
-        `Unable to load ${activeLayer.label} tiles at this location. Try zooming out or switching layers.`,
-      )
+      notifications.show({
+        id: TILE_NOTICE_ID,
+        color: 'red',
+        title: 'Map tiles',
+        message: `Unable to load ${activeLayer.label} tiles at this location. Try zooming out or switching layers.`,
+        autoClose: false,
+        withCloseButton: true,
+      })
     }
   }
 
   const handleTileLoad = () => {
     tileErrorCountRef.current = 0
-    setTileNotice('')
-  }
-
-  const dismissTileNotice = () => {
-    setTileNotice('')
+    notifications.hide(TILE_NOTICE_ID)
   }
 
   useEffect(() => {
     tileErrorCountRef.current = 0
-    setTileNotice('')
+    notifications.hide(TILE_NOTICE_ID)
   }, [mapLayer])
 
   return (
     <main className={`app-shell ${panelOpen ? '' : 'collapsed'}`}>
-      <header className="hero-card" ref={panelRef}>
-        <div className="hero-card-copy">
-          <p className="eyebrow">React + Vite + Leaflet</p>
-          <h1>DG Mapper</h1>
-          <p className="hero-copy">
-            A polished, installable map app with a smooth, slippy map experience.
-          </p>
-        </div>
+      <Paper ref={panelRef} className="hero-card" shadow="lg" radius="lg" p="md" withBorder>
+        <Group justify="space-between" align="flex-start" gap="md">
+          <Stack gap={4} style={{ minWidth: 0 }}>
+            <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.18em' }}>
+              React + Vite + Leaflet
+            </Text>
+            <Title order={1} size="h2">
+              DG Mapper
+            </Title>
+            <Text size="sm" c="dimmed" maw={480}>
+              A polished, installable map app with a smooth, slippy map experience.
+            </Text>
 
-        <div className="hero-card-actions">
-          <button
-            type="button"
-            className="panel-close-button"
-            onClick={() => setPanelOpen(false)}
-            aria-label="Collapse panel"
-          >
-            ×
-          </button>
-
-          <div className="controls">
-            {locationError ? <p className="status-text error">{locationError}</p> : null}
-            {!locationError && !isLocating && position ? (
-              <p className="status-text">
-                Your location is now shown on the map: {position[0].toFixed(5)}, {position[1].toFixed(5)}
-              </p>
+            {/* TEMPORARY: stands in for real course selection/management UI, which
+                doesn't exist yet — see useDefaultCourse.ts. */}
+            {isLoggedIn ? (
+              <Text size="sm" c={courseError ? 'red' : 'dimmed'}>
+                {courseError
+                  ? `Couldn't load your course: ${courseError}`
+                  : courseLoading
+                    ? 'Setting up your course…'
+                    : course
+                      ? `Course: ${course.name}`
+                      : null}
+              </Text>
             ) : null}
-          </div>
-        </div>
-      </header>
+          </Stack>
+
+          <Stack align="flex-end" gap="sm">
+            <ActionIcon variant="subtle" radius="xl" onClick={() => setPanelOpen(false)} aria-label="Collapse panel">
+              <IconX size={18} />
+            </ActionIcon>
+
+            <Stack gap={4} align="flex-end">
+              {locationError ? (
+                <Text size="sm" c="red">
+                  {locationError}
+                </Text>
+              ) : null}
+              {!locationError && !isLocating && position ? (
+                <Text size="sm" c="dimmed">
+                  Your location is now shown on the map: {position[0].toFixed(5)}, {position[1].toFixed(5)}
+                </Text>
+              ) : null}
+            </Stack>
+          </Stack>
+        </Group>
+      </Paper>
 
       <section className="map-card" aria-label="Leaflet map">
         {!panelOpen ? (
-          <button
-            type="button"
-            className="main-menu-button"
-            onClick={() => setPanelOpen(true)}
-            aria-label="Open panel"
-            title="Open DG Mapper panel"
-          >
-            DGMapper
-          </button>
+          <Stack gap={6} className="main-menu-button-wrapper">
+            <Button
+              className="main-menu-button"
+              radius="xl"
+              leftSection={<IconMenu2 size={16} />}
+              onClick={() => setPanelOpen(true)}
+              aria-label="Open panel"
+              title="Open DG Mapper panel"
+            >
+              DG Mapper
+            </Button>
+
+            {/* TEMPORARY: stands in for real course selection/management UI — see
+                useDefaultCourse.ts. Mirrors the status text inside the hero panel,
+                so it's visible in both the collapsed and expanded states. */}
+            {isLoggedIn ? (
+              <Badge
+                color={courseError ? 'red' : 'gray'}
+                variant="light"
+                radius="sm"
+                style={{ alignSelf: 'flex-start' }}
+              >
+                {courseError
+                  ? `Course error: ${courseError}`
+                  : courseLoading
+                    ? 'Setting up course…'
+                    : (course?.name ?? '')}
+              </Badge>
+            ) : null}
+          </Stack>
+        ) : null}
+
+        {isOwner ? (
+          <SegmentedControl
+            className="edit-mode-toggle"
+            size="xs"
+            radius="xl"
+            value={isEditMode ? 'edit' : 'view'}
+            onChange={(value) => setEditModeRequested(value === 'edit')}
+            data={[
+              {
+                value: 'view',
+                label: (
+                  <Group gap={4} wrap="nowrap">
+                    <IconEye size={14} />
+                    <span>View</span>
+                  </Group>
+                ),
+              },
+              {
+                value: 'edit',
+                label: (
+                  <Group gap={4} wrap="nowrap">
+                    <IconEdit size={14} />
+                    <span>Edit</span>
+                  </Group>
+                ),
+              },
+            ]}
+          />
         ) : null}
 
         <MapControls
           isLoggedIn={isLoggedIn}
-          toggleUserMenu={toggleUserMenu}
-          showUserMenu={showUserMenu}
-          mapLoginButtonRef={mapLoginButtonRef}
-          userMenuRef={userMenuRef}
           handleLogout={handleLogout}
           openLoginDialog={() => {
             setAuthMode('login')
@@ -361,9 +432,25 @@ function App() {
           user={user}
         />
 
+        {/* TEMPORARY: exercises the data layer through the UI before the real
+            long-press add-point flow exists. Remove once that flow is built. */}
+        {isEditMode ? (
+          <ActionIcon
+            className="test-add-point-button"
+            size={52}
+            radius="xl"
+            variant="filled"
+            color="teal"
+            onClick={handleAddTestPoint}
+            aria-label="Add test point at map center"
+            title="TEMP: add a test point at map center"
+          >
+            <IconPlus size={22} />
+          </ActionIcon>
+        ) : null}
+
         <AuthDialog
           showLoginDialog={showLoginDialog}
-          loginDialogRef={loginDialogRef}
           authMode={authMode}
           authEmail={authEmail}
           authPassword={authPassword}
@@ -388,21 +475,20 @@ function App() {
               setShowConfirmReset(false)
               if (success) {
                 setShowLoginDialog(false)
-                setShowUserMenu(false)
               }
             }}
           />
         ) : null}
 
-        <MapContainer center={position} zoom={13} scrollWheelZoom zoomControl={false} maxZoom={23}>
-          {tileNotice ? (
-            <div className="tile-notice" role="status">
-              <span>{tileNotice}</span>
-              <button type="button" className="tile-notice-dismiss" onClick={dismissTileNotice} aria-label="Dismiss tile notice">
-                ×
-              </button>
-            </div>
-          ) : null}
+        <MapContainer
+          ref={mapRef}
+          center={position}
+          zoom={13}
+          scrollWheelZoom="center"
+          touchZoom="center"
+          zoomControl={false}
+          maxZoom={23}
+        >
           {activeLayer.type === 'image' ? (
             <ArcGISImageLayer
               url={activeLayer.url}
@@ -432,20 +518,7 @@ function App() {
             orientation="vertical"
           />
 
-          {points.map((point) => (
-            <CircleMarker
-              key={point.name}
-              center={point.position}
-              pathOptions={{ color: '#38bdf8', fillColor: '#0ea5e9', fillOpacity: 0.85 }}
-              radius={12}
-            >
-              <Popup>
-                <strong>{point.name}</strong>
-                <br />
-                {point.description}
-              </Popup>
-            </CircleMarker>
-          ))}
+          <CourseLayer points={points} holes={holes} removePoint={removePoint} isEditMode={isEditMode} />
 
           {!locationError && position ? (
             <CircleMarker
@@ -457,6 +530,25 @@ function App() {
             </CircleMarker>
           ) : null}
         </MapContainer>
+
+        {/* Fixed at screen center — marks where the temporary add-point button (and
+            eventually the real long-press add flow) will place a new point. Deliberately
+            outside the Leaflet DOM tree: it never needs to move with the map, so it
+            doesn't need Leaflet's coordinate system at all. Only meaningful in edit
+            mode — there's nothing to place it for in view mode. */}
+        {isEditMode ? (
+          <div className="crosshair" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 28 28">
+              <g style={{ filter: 'drop-shadow(0 0 1.5px rgba(0,0,0,0.85))' }}>
+                <line x1="14" y1="1" x2="14" y2="10" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <line x1="14" y1="18" x2="14" y2="27" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <line x1="1" y1="14" x2="10" y2="14" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <line x1="18" y1="14" x2="27" y2="14" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="14" cy="14" r="1.5" fill="white" />
+              </g>
+            </svg>
+          </div>
+        ) : null}
       </section>
     </main>
   )

@@ -1,0 +1,31 @@
+/* Point marker appearance (color, shape, size) is now controlled entirely from
+   POINT_ICON_CONFIG in pointIcons.tsx — see that file to change how a marker
+   type looks. This rule is the one thing that still has to live in CSS:
+   Leaflet's own .leaflet-div-icon rule sets a background/border on every
+   divIcon by default, which would otherwise show through around the edges of
+   our own inline-styled content regardless of stylesheet load order (the
+   extra `.leaflet-div-icon` in the selector raises specificity above
+   Leaflet's rule to guarantee that). */
+.leaflet-div-icon.marker-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Hole number/name label at the midpoint of a hole's line */
+.leaflet-div-icon.hole-label-wrapper {
+  background: transparent;
+  border: none;
+}
+
+.hole-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
