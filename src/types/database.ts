@@ -27,6 +27,11 @@ export type Course = AuditFields & {
   id: string
   name: string
   is_public: boolean
+  /** Generated column — plain latitude in degrees, read-only. Always present:
+   *  hq_location is not-null in the schema (with a Canberra default), so
+   *  every course always has somewhere to center the map on. */
+  hq_lat: number
+  hq_lng: number
 }
 
 export type Point = AuditFields & {

@@ -1,7 +1,9 @@
 import { supabase } from '../supabase.js'
+import { toLocationEWKT } from '../geo.js'
 import type { Course } from '../../types/database.js'
 
-const COURSE_COLUMNS = 'id, name, is_public, created_at, modified_at, created_by, modified_by, is_deleted'
+const COURSE_COLUMNS =
+  'id, name, is_public, hq_lat, hq_lng, created_at, modified_at, created_by, modified_by, is_deleted'
 
 /** Courses created by the current user (their own course list — not public courses by others). */
 export async function fetchMyCourses(): Promise<Course[]> {
@@ -32,10 +34,17 @@ export async function fetchCourse(courseId: string): Promise<Course | null> {
   return data as Course | null
 }
 
-export async function createCourse(name: string): Promise<Course> {
+/**
+ * hq is required — a course needs somewhere to center the map on from the
+ * moment it exists, and there's no hole/point yet to derive one from (see
+ * architecture.md). Pass wherever the map is currently centered (or the
+ * user's location) as a sensible starting point; it can be moved later via
+ * setCourseHqLocation.
+ */
+export async function createCourse(name: string, hq: { lat: number; lng: number }): Promise<Course> {
   const { data, error } = await supabase
     .from('courses')
-    .insert({ name })
+    .insert({ name, hq_location: toLocationEWKT(hq.lat, hq.lng) })
     .select(COURSE_COLUMNS)
     .single()
 
@@ -47,6 +56,18 @@ export async function renameCourse(courseId: string, name: string): Promise<Cour
   const { data, error } = await supabase
     .from('courses')
     .update({ name })
+    .eq('id', courseId)
+    .select(COURSE_COLUMNS)
+    .single()
+
+  if (error) throw error
+  return data as Course
+}
+
+export async function setCourseHqLocation(courseId: string, lat: number, lng: number): Promise<Course> {
+  const { data, error } = await supabase
+    .from('courses')
+    .update({ hq_location: toLocationEWKT(lat, lng) })
     .eq('id', courseId)
     .select(COURSE_COLUMNS)
     .single()

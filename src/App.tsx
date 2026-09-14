@@ -13,8 +13,10 @@ import ResetPasswordConfirm from './components/ResetPasswordConfirm.js'
 import CourseLayer from './components/CourseLayer.js'
 import { useDefaultCourse } from './hooks/useDefaultCourse.js'
 import { useCourseData } from './hooks/useCourseData.js'
+import type { Course } from './types/database.js'
 import { tileLayers, type TileLayerId } from './tileLayers.js'
 import ArcGISImageLayer from './components/ArcGISImageLayer.js'
+import MapInteractions from './components/MapInteractions.js'
 import './App.css'
 
 type MapLayer = TileLayerId
@@ -34,6 +36,23 @@ function RecenterAutomatically({ position }: { position: [number, number] }) {
   return null
 }
 
+/** Recenters the map on a course's HQ location once it loads. Deliberately keyed
+ *  on `course?.id` rather than the whole `course` object — a rename or other field
+ *  change shouldn't yank the map away from wherever the person is currently looking;
+ *  only an actual *different course* loading should move it. */
+function RecenterOnCourseHQ({ course }: { course: Course | null }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (course) {
+      map.setView([course.hq_lat, course.hq_lng], map.getZoom())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, course?.id])
+
+  return null
+}
+
 // zoom controls and layer/locate are provided via MapOverlay component
 
 function App() {
@@ -47,7 +66,10 @@ function App() {
   const [mapLayer, setMapLayer] = useState<MapLayer>((tileLayers[0]?.id ?? 'osm') as TileLayerId)
   const [user, setUser] = useState<User | null>(null)
   const isLoggedIn = Boolean(user)
-  const { course, courseId, loading: courseLoading, error: courseError } = useDefaultCourse(user?.id ?? null)
+  const { course, courseId, loading: courseLoading, error: courseError } = useDefaultCourse(user?.id ?? null, {
+    lat: position[0],
+    lng: position[1],
+  })
   const { points, holes, addPoint, removePoint } = useCourseData(courseId)
 
   // Course-edit mode vs. the default view mode — see architecture.md §3. Only the
@@ -96,17 +118,11 @@ function App() {
     )
   }
 
-  useEffect(() => {
-    if (!navigator.permissions) {
-      return
-    }
-
-    navigator.permissions.query({ name: 'geolocation' }).then((status) => {
-      if (status.state === 'granted') {
-        locateUser()
-      }
-    })
-  }, [])
+  // Note: this app used to auto-locate on mount if geolocation permission was
+  // already granted. Removed — it would immediately override the map centering
+  // on the active course's HQ location below, which should take priority on
+  // load. The "locate me" button (via locateUser, unchanged) still works exactly
+  // as before whenever the person explicitly wants to jump to their real position.
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -509,6 +525,10 @@ function App() {
           )}
 
           <RecenterAutomatically position={position} />
+          <RecenterOnCourseHQ course={course} />
+          
+          <MapInteractions />
+
           <MapOverlay
             layers={tileLayers}
             mapLayer={mapLayer}
