@@ -57,6 +57,19 @@
   height: 100%;
   min-height: 100vh;
   width: 100%;
+  /* Prevents iOS Safari's copy/share callout and text-selection highlight from
+     appearing during a long-press gesture on the map background. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ...but text inside popups (point names, etc.) should still be selectable —
+   the rule above would otherwise disable that too, since popups are rendered
+   as descendants of .leaflet-container. */
+.leaflet-popup-content {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Leaflet popup container defaults */
@@ -87,60 +100,18 @@
   background: transparent;
   border: none;
 }
-.context-menu {
-  background: var(--mantine-color-body);
-  border: 1px solid var(--mantine-color-default-border);
-  border-radius: 6px;
-  box-shadow: var(--mantine-shadow-md);
-  padding: 4px 0;
-  min-width: 160px;
-}
 
-.context-menu button {
-  display: block;
-  width: 100%;
-  padding: 9px 14px;
-  border: 0;
-  background: transparent;
-  color: var(--mantine-color-text);
-  text-align: left;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.context-menu button:hover {
-  background: var(--mantine-color-default-hover);
-}
-
-.distance-display {
+/* Hole-builder confirm/cancel panel — bottom-center, floating over the map.
+   Deliberately not a Leaflet popup: it must stay open regardless of where the
+   person taps on the map while selecting tees/baskets (architecture.md §3:
+   tapping empty map space during building must not cancel the flow). */
+.hole-builder-panel {
   position: absolute;
-  top: 10px;
   left: 50%;
+  bottom: 24px;
   transform: translateX(-50%);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.live-distance-label {
-  position: absolute;
-  z-index: 2000;
-  pointer-events: none;
-
-  padding: 3px 7px;
-  border-radius: 5px;
-
-  background: rgba(255, 255, 255, 0.92);
-  color: #1f2937;
-
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-
-  transform: translateY(-50%);
+  z-index: 1000;
+  width: min(420px, calc(100% - 48px));
 }
 
 @media (max-width: 700px) {

@@ -37,26 +37,30 @@ export const POINT_ICON_CONFIG: Record<PointType, PointIconConfig> = {
 }
 // ---------------------------------------------------------------------------
 
-// Only 'default' is implemented so far — see architecture.md §4 for the full
-// marker visual-state table (candidate/selected/dimmed/dragging/
+// 'default' and 'selected' are implemented — see architecture.md §4 for the
+// rest of the marker visual-state table (candidate/dimmed/dragging/
 // micromove-*/alternative). Add a variant by giving it a style entry below;
-// buildPointHtml already applies whatever's there (currently just opacity —
-// extend it here as more variants need more than that, e.g. an outer ring).
-export type PointIconVariant = 'default'
+// buildPointHtml already applies whatever's there — extend it if a future
+// variant needs more than opacity/an outer ring (e.g. a pulse animation).
+export type PointIconVariant = 'default' | 'selected'
 
-const POINT_ICON_VARIANT_STYLES: Record<PointIconVariant, { opacity?: number }> = {
+const POINT_ICON_VARIANT_STYLES: Record<PointIconVariant, { opacity?: number; ringColor?: string }> = {
   default: {},
+  // Used while a point is included in the hole currently being built/edited —
+  // see the hole-builder flow.
+  selected: { ringColor: '#22c55e' },
 }
 
 function buildPointHtml(config: PointIconConfig, variant: PointIconVariant): string {
   const variantStyle = POINT_ICON_VARIANT_STYLES[variant]
+  const ringShadow = variantStyle.ringColor ? `, 0 0 0 3px ${variantStyle.ringColor}` : ''
 
   // box-sizing: border-box + width/height: 100% keep the border inside the size
   // Leaflet assumes for anchor math — without it, a border is added on top of
   // the declared size, inflating the rendered box and visibly shifting the
   // marker away from its true coordinate. Applied once here, for every shape,
   // so a newly-added shape can't reintroduce that bug.
-  const base = `box-sizing: border-box; width: 100%; height: 100%; opacity: ${variantStyle.opacity ?? 1}; background: ${config.color}; border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 1px 4px rgba(0,0,0,0.45);`
+  const base = `box-sizing: border-box; width: 100%; height: 100%; opacity: ${variantStyle.opacity ?? 1}; background: ${config.color}; border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 1px 4px rgba(0,0,0,0.45)${ringShadow};`
 
   if (config.shape === 'square') {
     return `<div style="${base} border-radius: 6px;"></div>`
@@ -70,10 +74,10 @@ function buildPointHtml(config: PointIconConfig, variant: PointIconVariant): str
     // No border/background/box-shadow here — those are for the CSS-drawn
     // shapes above. An image icon is just... the image, at the configured
     // size, with a drop-shadow standing in for the box-shadow the other
-    // shapes get (drop-shadow follows the image's actual (possibly
-    // transparent/irregular) silhouette, where box-shadow would draw a
-    // shadow around the image's rectangular bounding box instead).
-    return `<img src="${config.imageUrl}" width="${config.size}" height="${config.size}" style="display: block; opacity: ${variantStyle.opacity ?? 1}; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));" />`
+    // shapes get, plus the same selection ring via a wrapper when needed.
+    const img = `<img src="${config.imageUrl}" width="${config.size}" height="${config.size}" style="display: block; opacity: ${variantStyle.opacity ?? 1}; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));" />`
+    if (!variantStyle.ringColor) return img
+    return `<div style="box-sizing: border-box; width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 0 3px ${variantStyle.ringColor};">${img}</div>`
   }
 
   // 'ring': the dashed inner ring is a child of its own small wrapper, which can

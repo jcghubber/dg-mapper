@@ -17,8 +17,9 @@
   z-index: 900;
 }
 
-/* TEMPORARY — remove alongside the button in App.tsx once the real add-point flow exists. */
-.test-add-point-button {
+/* Floating position for the "add point at crosshair" button — one of two entry
+   points into the add-point flow (the other is long-press on the map). */
+.add-point-button {
   position: absolute;
   top: 230px;
   right: 18px;

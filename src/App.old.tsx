@@ -11,16 +11,12 @@ import MapControls from './components/MapControls.js'
 import MapOverlay from './components/MapOverlay.js'
 import ResetPasswordConfirm from './components/ResetPasswordConfirm.js'
 import CourseLayer from './components/CourseLayer.js'
-import HoleBuilderPanel from './components/HoleBuilderPanel.js'
-import AddPointFlow from './components/map/AddPointFlow.js'
-import AddPointNameModal from './components/AddPointNameModal.js'
-import { EditModeProvider } from './context/EditModeContext.js'
-import { useEditModeDispatch } from './hooks/useEditMode.js'
 import { useDefaultCourse } from './hooks/useDefaultCourse.js'
 import { useCourseData } from './hooks/useCourseData.js'
 import type { Course } from './types/database.js'
 import { tileLayers, type TileLayerId } from './tileLayers.js'
 import ArcGISImageLayer from './components/ArcGISImageLayer.js'
+import MapInteractions from './components/MapInteractions.js'
 import './App.css'
 
 type MapLayer = TileLayerId
@@ -59,7 +55,7 @@ function RecenterOnCourseHQ({ course }: { course: Course | null }) {
 
 // zoom controls and layer/locate are provided via MapOverlay component
 
-function AppInner() {
+function App() {
   // Default center: Canberra, ACT — matches the app's Canberra aerial imagery
   // layers and existing test data. Overridden by real geolocation on load if
   // available (see the permissions-check effect below).
@@ -74,7 +70,7 @@ function AppInner() {
     lat: position[0],
     lng: position[1],
   })
-  const { points, holes, addPoint, removePoint, addHole, editHole } = useCourseData(courseId)
+  const { points, holes, addPoint, removePoint } = useCourseData(courseId)
 
   // Course-edit mode vs. the default view mode — see architecture.md §3. Only the
   // course's owner can ever be in edit mode; a non-owner (once viewing other users'
@@ -85,18 +81,7 @@ function AppInner() {
   const [editModeRequested, setEditModeRequested] = useState(false)
   const isEditMode = isOwner && editModeRequested
 
-  const editModeDispatch = useEditModeDispatch()
-
-  // If edit mode turns off mid-flow (toggled to View, or ownership changes),
-  // force the interaction state machine back to idle rather than leaving it
-  // stuck in 'placing'/'naming' with no way to reach it — this component (not
-  // EditModeProvider) owns the effect, since isEditMode is computed here and
-  // EditModeProvider needing it as a prop would be circular (this component
-  // has to be inside the Provider to read/dispatch its context at all).
-  useEffect(() => {
-    if (!isEditMode) editModeDispatch({ type: 'RESET' })
-  }, [isEditMode, editModeDispatch])
-
+  const testPointCountRef = useRef(0)
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
@@ -284,18 +269,28 @@ function AppInner() {
     await supabase.auth.signOut()
   }
 
-  // Crosshair + button entry point into the add-point flow — the other entry
-  // point is long-press (see AddPointFlow.tsx). Both dispatch the same
-  // START_PLACING action into the same picker/naming sequence; this one's
-  // starting point is just wherever the map is currently centered rather
-  // than a press location.
-  const handleAddPointAtCrosshair = () => {
+  // TEMPORARY: quick way to verify the Supabase data layer end-to-end through the UI,
+  // before the real long-press "add point" flow exists. Adds a point at the current
+  // map center, alternating tee/basket. Remove once that flow is built.
+  const handleAddTestPoint = async () => {
     const center = mapRef.current?.getCenter()
     if (!center) {
       notifications.show({ color: 'red', message: 'Map not ready yet — try again in a moment.' })
       return
     }
-    editModeDispatch({ type: 'START_PLACING', latlng: { lat: center.lat, lng: center.lng } })
+
+    testPointCountRef.current += 1
+    const n = testPointCountRef.current
+    const type = n % 2 === 1 ? 'tee' : 'basket'
+    try {
+      await addPoint({ type, name: `Test ${type} ${n}`, lat: center.lat, lng: center.lng })
+      notifications.show({ color: 'green', message: `Added test ${type} at crosshair.` })
+    } catch (err) {
+      notifications.show({
+        color: 'red',
+        message: err instanceof Error ? err.message : 'Failed to add test point.',
+      })
+    }
   }
 
   const activeLayer =
@@ -453,25 +448,22 @@ function AppInner() {
           user={user}
         />
 
-        {/* Second entry point into the add-point flow (the other is long-press —
-            see AddPointFlow.tsx, rendered inside MapContainer below). Places a
-            point wherever the crosshair currently sits. */}
+        {/* TEMPORARY: exercises the data layer through the UI before the real
+            long-press add-point flow exists. Remove once that flow is built. */}
         {isEditMode ? (
           <ActionIcon
-            className="add-point-button"
+            className="test-add-point-button"
             size={52}
             radius="xl"
             variant="filled"
-            onClick={handleAddPointAtCrosshair}
-            aria-label="Add point at crosshair"
-            title="Add point at crosshair"
+            color="teal"
+            onClick={handleAddTestPoint}
+            aria-label="Add test point at map center"
+            title="TEMP: add a test point at map center"
           >
             <IconPlus size={22} />
           </ActionIcon>
         ) : null}
-
-        <AddPointNameModal addPoint={addPoint} />
-        <HoleBuilderPanel holes={holes} addHole={addHole} editHole={editHole} />
 
         <AuthDialog
           showLoginDialog={showLoginDialog}
@@ -534,6 +526,9 @@ function AppInner() {
 
           <RecenterAutomatically position={position} />
           <RecenterOnCourseHQ course={course} />
+          
+          <MapInteractions />
+
           <MapOverlay
             layers={tileLayers}
             mapLayer={mapLayer}
@@ -544,7 +539,6 @@ function AppInner() {
           />
 
           <CourseLayer points={points} holes={holes} removePoint={removePoint} isEditMode={isEditMode} />
-          <AddPointFlow enabled={isEditMode} />
 
           {!locationError && position ? (
             <CircleMarker
@@ -557,11 +551,11 @@ function AppInner() {
           ) : null}
         </MapContainer>
 
-        {/* Fixed at screen center — marks where the "add point at crosshair" button
-            (and, while dragging during a long-press, the pending long-press location)
-            will place a new point. Deliberately outside the Leaflet DOM tree: it never
-            needs to move with the map, so it doesn't need Leaflet's coordinate system
-            at all. Only meaningful in edit mode. */}
+        {/* Fixed at screen center — marks where the temporary add-point button (and
+            eventually the real long-press add flow) will place a new point. Deliberately
+            outside the Leaflet DOM tree: it never needs to move with the map, so it
+            doesn't need Leaflet's coordinate system at all. Only meaningful in edit
+            mode — there's nothing to place it for in view mode. */}
         {isEditMode ? (
           <div className="crosshair" aria-hidden="true">
             <svg width="28" height="28" viewBox="0 0 28 28">
@@ -580,10 +574,4 @@ function AppInner() {
   )
 }
 
-export default function App() {
-  return (
-    <EditModeProvider>
-      <AppInner />
-    </EditModeProvider>
-  )
-}
+export default App
