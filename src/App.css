@@ -1,4 +1,7 @@
-/* App shell layout and page background styling */
+/* App shell layout and page background styling.
+   Visual styling of individual controls now comes from Mantine (see theme.ts) —
+   this file only handles page-level layout and absolute positioning of elements
+   that float over the Leaflet map, which Mantine has no opinion about. */
 .app-shell {
   min-height: 100vh;
   padding: 0;
@@ -10,110 +13,13 @@
   position: relative;
 }
 
-/* Floating hero panel styling */
+/* Floating hero panel position */
 .hero-card {
   position: absolute;
   top: 24px;
   left: 24px;
   z-index: 1200;
   width: min(420px, calc(100% - 48px));
-  background: rgba(15, 23, 42, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  padding: 18px 18px 16px;
-  backdrop-filter: blur(14px);
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.3);
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-/* Hero panel text content wrapper */
-.hero-card-copy {
-  min-width: 0;
-}
-
-/* Hero panel action area for buttons and status messages */
-.hero-card-actions {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-
-
-.panel-close-button {
-  align-self: flex-end;
-  border: none;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-/* Hover state for the hero panel close button */
-.panel-close-button:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: #7dd3fc;
-}
-
-.hero-copy {
-  margin-top: 6px;
-  max-width: 620px;
-  line-height: 1.5;
-  color: #cbd5e1;
-  font-size: 0.95rem;
-}
-
-/* Status and hero action container */
-.controls {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-/* Map-layer and locate button styles for the hero section */
-.locate-button {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 16px;
-  font-weight: 700;
-  cursor: pointer;
-  background: #38bdf8;
-  color: #082f49;
-}
-
-/* Hover state for the hero locate action button */
-.locate-button:hover {
-  background: #7dd3fc;
-}
-
-/* Status text shown in the hero action area */
-.status-text {
-  margin: 0;
-  font-size: 0.95rem;
-  color: #cbd5e1;
-}
-
-/* Error message styling inside hero status text */
-.status-text.error {
-  color: #fda4af;
 }
 
 .map-card {
@@ -124,31 +30,6 @@
   min-height: 100vh;
   border: none;
   box-shadow: none;
-}
-
-
-
-.map-card .leaflet-top.leaflet-left {
-  z-index: 900;
-  top: 76px;
-  left: 18px;
-}
-
-.map-card .leaflet-control-zoom {
-  margin: 0;
-  box-shadow: none;
-}
-
-/* Leaflet zoom button styling should match custom map controls */
-.map-card .leaflet-control-zoom a {
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
-  border: none;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-
-.map-card .leaflet-control-zoom a:hover {
-  background: rgba(15, 23, 42, 1);
 }
 
 .app-shell.collapsed {
@@ -167,41 +48,74 @@
   box-shadow: none;
 }
 
-/* Collapsed app state hides the hero panel and expands the map */
-.app-shell.collapsed {
-  padding: 0;
-  gap: 0;
-}
-
 /* Ensure the Leaflet map fills the viewport in collapsed mode */
 .app-shell.collapsed .leaflet-container {
   min-height: 100vh;
 }
 
-
 .leaflet-container {
   height: 100%;
   min-height: 100vh;
   width: 100%;
+  /* Prevents iOS Safari's copy/share callout and text-selection highlight from
+     appearing during a long-press gesture on the map background. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* Leaflet container defaults and popup styling */
+/* ...but text inside popups (point names, etc.) should still be selectable —
+   the rule above would otherwise disable that too, since popups are rendered
+   as descendants of .leaflet-container. */
+.leaflet-popup-content {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Leaflet popup container defaults */
 .leaflet-popup-content-wrapper {
   border-radius: 12px;
+}
+
+/* Fixed at screen center over the map, marking where a new point will be added */
+.crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 750;
+  pointer-events: none;
+}
+.main-menu-button-wrapper {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 1000;
+}
+
+/* Leaflet's divIcon applies a default white box + border via .leaflet-div-icon —
+   neutralize it for our custom markers, which supply their own background/shape. */
+.point-marker,
+.hole-label-marker {
+  background: transparent;
+  border: none;
+}
+
+/* Hole-builder confirm/cancel panel — bottom-center, floating over the map.
+   Deliberately not a Leaflet popup: it must stay open regardless of where the
+   person taps on the map while selecting tees/baskets (architecture.md §3:
+   tapping empty map space during building must not cancel the flow). */
+.hole-builder-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: min(420px, calc(100% - 48px));
 }
 
 @media (max-width: 700px) {
   .app-shell {
     padding: 12px;
-  }
-
-  .hero-card {
-    padding: 18px;
-    flex-direction: column;
-  }
-
-  .controls {
-    align-items: flex-start;
-    width: 100%;
   }
 }

@@ -1,41 +1,58 @@
-import type { RefObject } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { ActionIcon, Menu, Text } from '@mantine/core'
+import { IconLogin, IconLogout, IconUser } from '@tabler/icons-react'
 import './MapControls.css'
 
 type MapControlsProps = {
   isLoggedIn: boolean
-  toggleUserMenu: () => void
-  showUserMenu: boolean
-  mapLoginButtonRef: RefObject<HTMLButtonElement | null>
-  userMenuRef: RefObject<HTMLDivElement | null>
   handleLogout: () => void
   openLoginDialog: () => void
   user: User | null
 }
 
-function MapControls({ isLoggedIn, toggleUserMenu, showUserMenu, mapLoginButtonRef, userMenuRef, handleLogout, openLoginDialog, user }: MapControlsProps) {
-  return (
-    <>
-      <button
-        type="button"
+function MapControls({ isLoggedIn, handleLogout, openLoginDialog, user }: MapControlsProps) {
+  if (!isLoggedIn) {
+    return (
+      <ActionIcon
         className="map-login-button"
-        ref={mapLoginButtonRef}
-        onClick={isLoggedIn ? toggleUserMenu : openLoginDialog}
-        aria-label={isLoggedIn ? 'Open user menu' : 'Log in'}
-        title={isLoggedIn ? 'Open user menu' : 'Log in'}
+        size={52}
+        radius="xl"
+        variant="filled"
+        onClick={openLoginDialog}
+        aria-label="Log in"
+        title="Log in"
       >
-        {isLoggedIn ? '👤' : 'Log in'}
-      </button>
+        <IconLogin size={22} />
+      </ActionIcon>
+    )
+  }
 
-      {isLoggedIn && showUserMenu ? (
-        <div className="map-user-menu" ref={userMenuRef}>
-          <div className="user-menu-item user-menu-title">Signed in as {user?.email ?? 'Account'}</div>
-          <button type="button" className="user-menu-item" onClick={handleLogout}>
-            Sign out
-          </button>
-        </div>
-      ) : null}
-    </>
+  return (
+    <Menu shadow="md" width={220} position="bottom-end" withinPortal zIndex={2000}>
+      <Menu.Target>
+        <ActionIcon
+          className="map-login-button"
+          size={52}
+          radius="xl"
+          variant="filled"
+          aria-label="Open user menu"
+          title="Open user menu"
+        >
+          <IconUser size={22} />
+        </ActionIcon>
+      </Menu.Target>
+
+      <Menu.Dropdown>
+        <Menu.Label>
+          <Text size="xs" truncate="end">
+            Signed in as {user?.email ?? 'Account'}
+          </Text>
+        </Menu.Label>
+        <Menu.Item leftSection={<IconLogout size={16} />} onClick={handleLogout}>
+          Sign out
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   )
 }
 

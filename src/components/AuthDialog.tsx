@@ -1,11 +1,11 @@
-import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react'
-import './AuthDialog.css'
+import type { Dispatch, FormEvent, SetStateAction } from 'react'
+import { Alert, Anchor, Button, Group, Modal, PasswordInput, Stack, Text, TextInput } from '@mantine/core'
+import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 
 type AuthMode = 'login' | 'signup' | 'reset' | 'magic-link'
 
 type AuthDialogProps = {
   showLoginDialog: boolean
-  loginDialogRef: RefObject<HTMLDivElement | null>
   authMode: AuthMode
   authEmail: string
   authPassword: string
@@ -24,9 +24,36 @@ type AuthDialogProps = {
   handleMagicLinkLogin: (event: FormEvent<HTMLFormElement>) => Promise<void>
 }
 
+const TITLES: Record<AuthMode, string> = {
+  login: 'Log in',
+  signup: 'Create account',
+  'magic-link': 'Email me a sign-in link',
+  reset: 'Reset password',
+}
+
+const DESCRIPTIONS: Record<AuthMode, string> = {
+  login: 'Sign in to access user options.',
+  signup: 'Create an account with your email and password.',
+  'magic-link': 'We will email you a secure link that signs you in instantly.',
+  reset: 'Enter your email and we will send you a reset link.',
+}
+
+const SUBMIT_LABELS: Record<AuthMode, string> = {
+  login: 'Log in',
+  signup: 'Create account',
+  'magic-link': 'Send sign-in link',
+  reset: 'Send reset link',
+}
+
+const SUBMITTING_LABELS: Record<AuthMode, string> = {
+  login: 'Signing in…',
+  signup: 'Creating account…',
+  'magic-link': 'Sending sign-in link…',
+  reset: 'Sending reset link…',
+}
+
 function AuthDialog({
   showLoginDialog,
-  loginDialogRef,
   authMode,
   authEmail,
   authPassword,
@@ -44,10 +71,6 @@ function AuthDialog({
   handleResetPassword,
   handleMagicLinkLogin,
 }: AuthDialogProps) {
-  if (!showLoginDialog) {
-    return null
-  }
-
   const submitHandler =
     authMode === 'login'
       ? handleLogin
@@ -57,130 +80,117 @@ function AuthDialog({
       ? handleMagicLinkLogin
       : handleResetPassword
 
+  const resetStatus = () => {
+    setAuthError('')
+    setAuthNotice('')
+  }
+
   return (
-    <div className="dialog-backdrop" role="dialog" aria-modal="true">
-      <div className="login-dialog" ref={loginDialogRef}>
-        <h2>
-          {authMode === 'login'
-            ? 'Log in'
-            : authMode === 'signup'
-            ? 'Create account'
-            : authMode === 'magic-link'
-            ? 'Email me a sign-in link'
-            : 'Reset password'}
-        </h2>
-        <p>
-          {authMode === 'login'
-            ? 'Sign in to access user options.'
-            : authMode === 'signup'
-            ? 'Create an account with your email and password.'
-            : authMode === 'magic-link'
-            ? 'We will email you a secure link that signs you in instantly.'
-            : 'Enter your email and we will send you a reset link.'}
-        </p>
+    <Modal
+      opened={showLoginDialog}
+      onClose={() => setShowLoginDialog(false)}
+      title={TITLES[authMode]}
+      centered
+      radius="lg"
+    >
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          {DESCRIPTIONS[authMode]}
+        </Text>
 
-        <form className="login-form" onSubmit={submitHandler}>
-          <label htmlFor="login-email">Email</label>
-          <input
-            id="login-email"
-            type="email"
-            value={authEmail}
-            onChange={(event) => setAuthEmail(event.target.value)}
-            placeholder="you@example.com"
-            required
-          />
+        <form onSubmit={submitHandler}>
+          <Stack gap="sm">
+            <TextInput
+              label="Email"
+              type="email"
+              value={authEmail}
+              onChange={(event) => setAuthEmail(event.currentTarget.value)}
+              placeholder="you@example.com"
+              required
+            />
 
-          {authMode !== 'reset' && authMode !== 'magic-link' ? (
-            <>
-              <label htmlFor="login-password">Password</label>
-              <input
-                id="login-password"
-                type="password"
+            {authMode !== 'reset' && authMode !== 'magic-link' ? (
+              <PasswordInput
+                label="Password"
                 value={authPassword}
-                onChange={(event) => setAuthPassword(event.target.value)}
+                onChange={(event) => setAuthPassword(event.currentTarget.value)}
                 placeholder="••••••••"
                 required
               />
-            </>
-          ) : null}
+            ) : null}
 
-          {authError ? <p className="status-text error">{authError}</p> : null}
-          {authNotice ? <p className="status-text">{authNotice}</p> : null}
+            {authError ? (
+              <Alert color="red" icon={<IconAlertCircle size={16} />} variant="light">
+                {authError}
+              </Alert>
+            ) : null}
+            {authNotice ? (
+              <Alert color="blue" icon={<IconInfoCircle size={16} />} variant="light">
+                {authNotice}
+              </Alert>
+            ) : null}
 
-          <div className="dialog-actions-row">
-            <button type="submit" className="dialog-action-button" disabled={isAuthenticating}>
-              {isAuthenticating
-                ? authMode === 'login'
-                  ? 'Signing in…'
+            <Group justify="flex-end" gap="sm">
+              <Button variant="default" type="button" onClick={() => setShowLoginDialog(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={isAuthenticating}>
+                {isAuthenticating ? SUBMITTING_LABELS[authMode] : SUBMIT_LABELS[authMode]}
+              </Button>
+            </Group>
+
+            <Stack gap={4} mt="xs">
+              <Anchor
+                component="button"
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (authMode === 'reset') {
+                    setAuthMode('login')
+                  } else {
+                    setAuthMode((current) => (current === 'login' ? 'signup' : 'login'))
+                  }
+                  resetStatus()
+                }}
+              >
+                {authMode === 'login'
+                  ? 'Need an account? Create one'
                   : authMode === 'signup'
-                  ? 'Creating account…'
-                  : authMode === 'magic-link'
-                  ? 'Sending sign-in link…'
-                  : 'Sending reset link…'
-                : authMode === 'login'
-                ? 'Log in'
-                : authMode === 'signup'
-                ? 'Create account'
-                : authMode === 'magic-link'
-                ? 'Send sign-in link'
-                : 'Send reset link'}
-            </button>
-            <button type="button" className="dialog-secondary-button" onClick={() => setShowLoginDialog(false)}>
-              Cancel
-            </button>
-          </div>
+                  ? 'Already have an account? Log in'
+                  : 'Back to log in'}
+              </Anchor>
 
-          <button
-            type="button"
-            className="dialog-switch-mode"
-            onClick={() => {
-              if (authMode === 'reset') {
-                setAuthMode('login')
-              } else {
-                setAuthMode((current) => (current === 'login' ? 'signup' : 'login'))
-              }
-              setAuthError('')
-              setAuthNotice('')
-            }}
-          >
-            {authMode === 'login'
-              ? 'Need an account? Create one'
-              : authMode === 'signup'
-              ? 'Already have an account? Log in'
-              : authMode === 'magic-link'
-              ? 'Back to log in'
-              : 'Back to log in'}
-          </button>
-
-          {authMode === 'login' ? (
-            <>
-              <button
-                type="button"
-                className="dialog-switch-mode"
-                onClick={() => {
-                  setAuthMode('reset')
-                  setAuthError('')
-                  setAuthNotice('')
-                }}
-              >
-                Forgot password?
-              </button>
-              <button
-                type="button"
-                className="dialog-switch-mode"
-                onClick={() => {
-                  setAuthMode('magic-link')
-                  setAuthError('')
-                  setAuthNotice('')
-                }}
-              >
-                Email me a sign-in link
-              </button>
-            </>
-          ) : null}
+              {authMode === 'login' ? (
+                <>
+                  <Anchor
+                    component="button"
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setAuthMode('reset')
+                      resetStatus()
+                    }}
+                  >
+                    Forgot password?
+                  </Anchor>
+                  <Anchor
+                    component="button"
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setAuthMode('magic-link')
+                      resetStatus()
+                    }}
+                  >
+                    Email me a sign-in link
+                  </Anchor>
+                </>
+              ) : null}
+            </Stack>
+          </Stack>
         </form>
-      </div>
-    </div>
+      </Stack>
+    </Modal>
   )
 }
 

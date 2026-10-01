@@ -1,145 +1,30 @@
-
-/* Login button styling (overlay handles other controls) */
-.map-login-button {
+/* Floating position for the view/edit mode toggle, top-right of the map — only
+   shown to a course's owner. */
+.edit-mode-toggle {
   position: absolute;
   top: 110px;
   right: 18px;
   z-index: 900;
-  width: 52px;
-  height: 52px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
-  cursor: pointer;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
-.map-layer-selector {
-  z-index: 910;
-  width: min(220px, calc(100vw - 54px));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.25);
-}
-
-.map-layer-option {
-  width: 100%;
-  border: none;
-  border-radius: 14px;
-  padding: 10px 14px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f8fafc;
-  text-align: left;
-  cursor: pointer;
-}
-
-.map-layer-option:hover,
-.map-layer-option.active {
-  background: rgba(59, 130, 246, 0.16);
-}
-
-/* map-locate-button moved into overlay component; keep login button styled above */
-
-/* Login button floating in the top-right corner */
-
-.map-layer-button:hover,
-.map-locate-button:hover,
-.map-login-button:hover {
-  background: rgba(15, 23, 42, 1);
-}
-
-/* Group wrapper for the stacked zoom buttons and zoom level badge */
-.zoom-controls-group {
-  position: relative;
-  z-index: 0;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Stacked zoom button group to preserve the vertical zoom button layout */
-.zoom-button-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.zoom-control-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 1rem;
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-}
-
-.zoom-control-button:hover {
-  background: rgba(15, 23, 42, 1);
-}
-
-/* Zoom level display badge beside the zoom button stack */
-.map-zoom-display {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 72px;
-  height: 36px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  pointer-events: auto;
-}
-
-/* Floating tile error notice at the bottom of the map */
-.tile-notice {
+/* Floating position for the login / user-menu button, top-right of the map.
+   Visual styling (color, shape, shadow) comes from Mantine/theme.ts — this file
+   only positions controls that float over the Leaflet map. */
+.map-login-button {
   position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
+  top: 170px;
+  right: 18px;
   z-index: 900;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(420px, calc(100% - 32px));
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.96);
-  color: #fda4af;
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-align: center;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  pointer-events: auto;
 }
 
-/* Map overlay container */
+/* Floating position for the "add point at crosshair" button — one of two entry
+   points into the add-point flow (the other is long-press on the map). */
+.add-point-button {
+  position: absolute;
+  top: 230px;
+  right: 18px;
+  z-index: 900;
+}
 .map-overlay {
   position: absolute;
   z-index: 900;
@@ -151,89 +36,3 @@
 .map-overlay.top-right { top: 100px; right: 18px; }
 .map-overlay.bottom-left { bottom: 18px; left: 18px; }
 .map-overlay.bottom-right { bottom: 18px; right: 18px; }
-
-.map-overlay.vertical .overlay-controls { display: flex; flex-direction: column; gap: 8px; }
-.map-overlay.horizontal .overlay-controls { display: flex; flex-direction: row; gap: 8px; align-items: center; }
-
-.overlay-button {
-  border: none;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-weight: 700;
-  background: rgba(15,23,42,0.92);
-  color: #f8fafc;
-  cursor: pointer;
-}
-
-.overlay-button.locate { width: 56px; }
-
-.tile-notice-dismiss {
-  border: none;
-  background: transparent;
-  color: #fda4af;
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-
-/* Floating user menu panel that appears when signed in */
-.map-user-menu {
-  position: absolute;
-  top: 170px;
-  right: 18px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  background: rgba(15, 23, 42, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.3);
-}
-
-.user-menu-item {
-  border: none;
-  background: transparent;
-  color: #f8fafc;
-  text-align: left;
-  padding: 10px 14px;
-  border-radius: 14px;
-  cursor: pointer;
-}
-
-.user-menu-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.user-menu-title {
-  opacity: 0.8;
-  padding-bottom: 4px;
-}
-
-/* Main menu button at the upper-left corner */
-.main-menu-button {
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  z-index: 1000;
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
-  color: #0f172a;
-  font-weight: 900;
-  font-size: 0.95rem;
-  cursor: pointer;
-  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.35);
-  pointer-events: auto;
-}
-
-.main-menu-button:hover {
-  background: rgba(15, 23, 42, 1);
-}
